@@ -14,7 +14,7 @@ import {
   Smartphone
 } from 'lucide-react';
 import { dbService } from '../services/db';
-import { verifyDynamicToken, getOrCreateDeviceId } from '../utils/crypto';
+import { verifyDynamicToken, getOrCreateDeviceId, getCurrentPositionAsync } from '../utils/crypto';
 
 export default function StudentDashboard({ user, data, onLogout }) {
   const [tab, setTab] = useState('scan');
@@ -133,17 +133,25 @@ export default function StudentDashboard({ user, data, onLogout }) {
         throw new Error('QR-код устарел (прошло более 20 секунд). Отсканируйте свежий код с экрана преподавателя.');
       }
 
+      let studentGeo = null;
+      if (lesson.geo) {
+        studentGeo = await getCurrentPositionAsync();
+      }
+
       const rec = await dbService.markAttendance({
         lesson,
         student: user,
         deviceId,
-        method: 'QR'
+        method: 'QR',
+        studentGeo
       });
 
       setFeedback({
         type: 'success',
         title: 'Отметка подтверждена!',
-        detail: `${lesson.subject} • Статус: ${rec.status === 'LATE' ? 'Опоздание' : 'Присутствует вовремя'}`
+        detail: `${lesson.subject} • Статус: ${rec.status === 'LATE' ? 'Опоздание' : 'Присутствует вовремя'}${
+          typeof rec.distanceMeters === 'number' ? ` (${rec.distanceMeters} м от аудитории)` : ''
+        }`
       });
     } catch (err) {
       setFeedback({
@@ -180,18 +188,26 @@ export default function StudentDashboard({ user, data, onLogout }) {
         throw new Error('Код неверный или уже устарел (обновляется каждые 20 сек).');
       }
 
+      let studentGeo = null;
+      if (matchedLesson.geo) {
+        studentGeo = await getCurrentPositionAsync();
+      }
+
       const rec = await dbService.markAttendance({
         lesson: matchedLesson,
         student: user,
         deviceId,
-        method: 'PIN'
+        method: 'PIN',
+        studentGeo
       });
 
       setPinInput('');
       setFeedback({
         type: 'success',
         title: 'Отметка подтверждена!',
-        detail: `${matchedLesson.subject} (${matchedLesson.room}) • ${rec.status === 'LATE' ? 'Опоздание' : 'Вовремя'}`
+        detail: `${matchedLesson.subject} (${matchedLesson.room}) • ${rec.status === 'LATE' ? 'Опоздание' : 'Вовремя'}${
+          typeof rec.distanceMeters === 'number' ? ` (${rec.distanceMeters} м от аудитории)` : ''
+        }`
       });
     } catch (err) {
       setFeedback({
@@ -281,7 +297,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
                       disabled={processing}
                       className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white shadow-lg shadow-blue-600/25"
                     >
-                      Включить камеру
+                      {processing ? 'Проверка GPS и токена...' : 'Включить камеру'}
                     </button>
                   </div>
                 ) : (
@@ -318,7 +334,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
                   disabled={processing || pinInput.length !== 6}
                   className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-sm font-semibold text-white"
                 >
-                  {processing ? 'Проверка HMAC...' : 'Подтвердить присутствие'}
+                  {processing ? 'Проверка HMAC и GPS...' : 'Подтвердить присутствие'}
                 </button>
               </form>
             )}
@@ -330,7 +346,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
                 </div>
                 {activeGroupLessons.map((l) => (
                   <div key={l.id} className="text-xs text-slate-300">
-                    • {l.subject} ({l.group}, {l.room})
+                    • {l.subject} ({l.group}, {l.room}) {l.geo ? '• с проверкой GPS' : ''}
                   </div>
                 ))}
               </div>
