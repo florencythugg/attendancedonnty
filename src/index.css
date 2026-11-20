@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+}
+
+.pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+#qr-reader video {
+  border-radius: 1rem;
+  object-fit: cover;
+  width: 100% !important;
+}
+#qr-reader__dashboard_section_csr button {
+  background-color: #2563eb !important;
+  color: white !important;
+  border-radius: 0.75rem !important;
+  padding: 0.5rem 1rem !important;
+  border: none !important;
+  font-weight: 600 !important;
+}
