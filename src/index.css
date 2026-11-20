@@ -6,6 +6,8 @@
   body {
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
+    background-color: #030712;
+    color: #f8fafc;
   }
 }
 
@@ -13,16 +15,90 @@
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
+/* Стеклянные карточки (Glassmorphism) */
+.glass-card {
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+}
+
+.glass-nav {
+  background: rgba(9, 13, 26, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Фоновые светящиеся сферы */
+@keyframes floatOrb {
+  0%, 100% {
+    transform: translate(0px, 0px) scale(1);
+  }
+  50% {
+    transform: translate(18px, -22px) scale(1.06);
+  }
+}
+
+.animate-orb {
+  animation: floatOrb 9s ease-in-out infinite;
+}
+
+.animate-orb-delayed {
+  animation: floatOrb 12s ease-in-out infinite reverse;
+}
+
+/* Плавное появление контента при переключении вкладок */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tab-enter {
+  animation: fadeSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Лазерный луч сканера QR */
+@keyframes scanLaser {
+  0%, 100% {
+    top: 8%;
+    opacity: 0.4;
+  }
+  50% {
+    top: 88%;
+    opacity: 1;
+  }
+}
+
+.animate-scan-laser {
+  animation: scanLaser 2.2s ease-in-out infinite;
+}
+
+/* Стилизация камеры html5-qrcode */
+#qr-reader {
+  border: none !important;
+}
 #qr-reader video {
-  border-radius: 1rem;
+  border-radius: 1.25rem;
   object-fit: cover;
   width: 100% !important;
 }
+#qr-reader__scan_region {
+  background: transparent !important;
+}
 #qr-reader__dashboard_section_csr button {
-  background-color: #2563eb !important;
+  background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
   color: white !important;
-  border-radius: 0.75rem !important;
-  padding: 0.5rem 1rem !important;
+  border-radius: 0.85rem !important;
+  padding: 0.6rem 1.2rem !important;
   border: none !important;
   font-weight: 600 !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.5) !important;
 }
