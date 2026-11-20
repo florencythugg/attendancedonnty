@@ -13,7 +13,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { firebaseConfig, isFirebaseConfigured } from '../firebaseConfig';
-import { generateRandomSecret } from '../utils/crypto';
+import { generateRandomSecret, calculateDistanceMeters } from '../utils/crypto';
 
 let firestore = null;
 if (isFirebaseConfigured) {
@@ -64,7 +64,6 @@ export const dbService = {
         throw new Error('Пользователь с таким логином уже зарегистрирован');
       }
 
-      // Проверяем, не загрузил ли преподаватель этого студента заранее в ведомость
       let targetId = `${role[0]}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
       if (role === 'student') {
         const groupQ = query(
@@ -237,7 +236,7 @@ export const dbService = {
     }
   },
 
-  async createLesson({ teacher, subject, group, room, lateMinutes }) {
+  async createLesson({ teacher, subject, group, room, lateMinutes, geo = null }) {
     const id = 'les_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
     const lesson = {
       id,
@@ -247,6 +246,7 @@ export const dbService = {
       group: group.trim().toUpperCase(),
       room: room.trim() || 'Ауд. не указана',
       lateMinutes: Number(lateMinutes) || 10,
+      geo, // { lat, lng, radiusMeters } или null
       secret: generateRandomSecret(),
       isActive: true,
       startedAt: Date.now(),
@@ -287,7 +287,27 @@ export const dbService = {
     }
   },
 
-  async markAttendance({ lesson, student, deviceId, method = 'QR', forcedStatus = null }) {
+  async markAttendance({ lesson, student, deviceId, method = 'QR', forcedStatus = null, studentGeo = null }) {
+    // Проверка GPS-геофенсинга, если преподаватель включил её для пары
+    let distanceMeters = null;
+    if (method !== 'MANUAL' && lesson.geo && lesson.geo.lat && lesson.geo.lng) {
+      if (!studentGeo || !studentGeo.lat || !studentGeo.lng) {
+        throw new Error('Для этой пары включена проверка аудитории по GPS. Разрешите доступ к геолокации.');
+      }
+      distanceMeters = calculateDistanceMeters(
+        lesson.geo.lat,
+        lesson.geo.lng,
+        studentGeo.lat,
+        studentGeo.lng
+      );
+      const maxRadius = lesson.geo.radiusMeters || 100;
+      if (distanceMeters > maxRadius) {
+        throw new Error(
+          `Вы вне зоны аудитории (${distanceMeters} м от преподавателя при лимите ${maxRadius} м).`
+        );
+      }
+    }
+
     const recordId = `${lesson.id}__${student.id}`;
     const now = Date.now();
     const minutesPassed = (now - lesson.startedAt) / 60000;
@@ -302,6 +322,7 @@ export const dbService = {
       status,
       markedAt: now,
       deviceId: method === 'MANUAL' ? 'TEACHER_MANUAL' : deviceId,
+      distanceMeters,
       method
     };
 
