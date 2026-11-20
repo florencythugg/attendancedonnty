@@ -6,6 +6,7 @@ import {
   setDoc,
   getDoc,
   getDocs,
+  deleteDoc,
   updateDoc,
   query,
   where,
@@ -44,22 +45,17 @@ function writeLocal(key, data) {
   notifyLocalListeners();
 }
 
+function normalizeName(name) {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 export const dbService = {
   isCloud: isFirebaseConfigured,
 
   async registerUser({ role, fullName, group, department, login, password }) {
     const cleanLogin = login.trim().toLowerCase();
-    const id = `${role[0]}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const userObj = {
-      id,
-      role,
-      fullName: fullName.trim(),
-      group: role === 'student' ? group.trim().toUpperCase() : '',
-      department: role === 'teacher' ? (department?.trim() || 'Кафедра КИ') : '',
-      login: cleanLogin,
-      password,
-      createdAt: Date.now()
-    };
+    const cleanName = fullName.trim().replace(/\s+/g, ' ');
+    const cleanGroup = role === 'student' ? group.trim().toUpperCase() : '';
 
     if (firestore) {
       const q = query(collection(firestore, 'users'), where('login', '==', cleanLogin));
@@ -67,21 +63,164 @@ export const dbService = {
       if (!snap.empty) {
         throw new Error('Пользователь с таким логином уже зарегистрирован');
       }
-      await setDoc(doc(firestore, 'users', id), userObj);
+
+      // Проверяем, не загрузил ли преподаватель этого студента заранее в ведомость
+      let targetId = `${role[0]}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      if (role === 'student') {
+        const groupQ = query(
+          collection(firestore, 'users'),
+          where('role', '==', 'student'),
+          where('group', '==', cleanGroup)
+        );
+        const groupSnap = await getDocs(groupQ);
+        const preloaded = groupSnap.docs
+          .map((d) => d.data())
+          .find((u) => u.isPreloaded && normalizeName(u.fullName) === normalizeName(cleanName));
+        if (preloaded) {
+          targetId = preloaded.id;
+        }
+      }
+
+      const userObj = {
+        id: targetId,
+        role,
+        fullName: cleanName,
+        group: cleanGroup,
+        department: role === 'teacher' ? (department?.trim() || 'Кафедра КИ') : '',
+        login: cleanLogin,
+        password,
+        isPreloaded: false,
+        createdAt: Date.now()
+      };
+
+      await setDoc(doc(firestore, 'users', targetId), userObj);
       return userObj;
     } else {
       const users = readLocal(LS_KEYS.users);
       if (users.some((u) => u.login === cleanLogin)) {
         throw new Error('Пользователь с таким логином уже зарегистрирован');
       }
-      users.push(userObj);
+
+      const preloadedIdx = role === 'student'
+        ? users.findIndex(
+            (u) =>
+              u.role === 'student' &&
+              u.isPreloaded &&
+              u.group === cleanGroup &&
+              normalizeName(u.fullName) === normalizeName(cleanName)
+          )
+        : -1;
+
+      const targetId =
+        preloadedIdx >= 0
+          ? users[preloadedIdx].id
+          : `${role[0]}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+      const userObj = {
+        id: targetId,
+        role,
+        fullName: cleanName,
+        group: cleanGroup,
+        department: role === 'teacher' ? (department?.trim() || 'Кафедра КИ') : '',
+        login: cleanLogin,
+        password,
+        isPreloaded: false,
+        createdAt: Date.now()
+      };
+
+      if (preloadedIdx >= 0) users[preloadedIdx] = userObj;
+      else users.push(userObj);
       writeLocal(LS_KEYS.users, users);
       return userObj;
     }
   },
 
+  async bulkImportStudents(groupName, rawText) {
+    const cleanGroup = groupName.trim().toUpperCase();
+    if (!cleanGroup) throw new Error('Укажите название группы');
+
+    const lines = rawText
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\d+[\.\)\-\s]+/, '').trim().replace(/\s+/g, ' '))
+      .filter((line) => line.length >= 3);
+
+    if (lines.length === 0) {
+      throw new Error('Список пуст. Введите хотя бы одно ФИО.');
+    }
+
+    const uniqueNames = Array.from(new Set(lines));
+    let addedCount = 0;
+
+    if (firestore) {
+      const q = query(
+        collection(firestore, 'users'),
+        where('role', '==', 'student'),
+        where('group', '==', cleanGroup)
+      );
+      const snap = await getDocs(q);
+      const existingNormalized = new Set(
+        snap.docs.map((d) => normalizeName(d.data().fullName))
+      );
+
+      for (const name of uniqueNames) {
+        if (existingNormalized.has(normalizeName(name))) continue;
+        const id = `s_pre_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        await setDoc(doc(firestore, 'users', id), {
+          id,
+          role: 'student',
+          fullName: name,
+          group: cleanGroup,
+          department: '',
+          login: '',
+          password: '',
+          isPreloaded: true,
+          createdAt: Date.now()
+        });
+        existingNormalized.add(normalizeName(name));
+        addedCount++;
+      }
+    } else {
+      const users = readLocal(LS_KEYS.users);
+      const existingNormalized = new Set(
+        users
+          .filter((u) => u.role === 'student' && u.group === cleanGroup)
+          .map((u) => normalizeName(u.fullName))
+      );
+
+      for (const name of uniqueNames) {
+        if (existingNormalized.has(normalizeName(name))) continue;
+        users.push({
+          id: `s_pre_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          role: 'student',
+          fullName: name,
+          group: cleanGroup,
+          department: '',
+          login: '',
+          password: '',
+          isPreloaded: true,
+          createdAt: Date.now()
+        });
+        existingNormalized.add(normalizeName(name));
+        addedCount++;
+      }
+      writeLocal(LS_KEYS.users, users);
+    }
+
+    return { added: addedCount, skipped: uniqueNames.length - addedCount };
+  },
+
+  async removePreloadedStudent(studentId) {
+    if (firestore) {
+      await deleteDoc(doc(firestore, 'users', studentId));
+    } else {
+      const users = readLocal(LS_KEYS.users).filter((u) => u.id !== studentId);
+      writeLocal(LS_KEYS.users, users);
+    }
+  },
+
   async loginUser(login, password) {
     const cleanLogin = login.trim().toLowerCase();
+    if (!cleanLogin) throw new Error('Введите логин');
     if (firestore) {
       const q = query(collection(firestore, 'users'), where('login', '==', cleanLogin));
       const snap = await getDocs(q);
