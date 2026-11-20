@@ -3,14 +3,12 @@ import { QrCode, GraduationCap, UserCheck, ShieldCheck, Cloud, HardDrive, ArrowR
 import { dbService } from '../services/db';
 import { TEACHER_INVITE_CODE } from '../firebaseConfig';
 
-const PRESET_GROUPS = ['КСЦ-23', 'КИ-23а', 'КИ-23б', 'ПИ-23', 'ИВТ-23'];
-
 export default function AuthScreen({ onAuthSuccess }) {
   const [mode, setMode] = useState('login');
   const [role, setRole] = useState('student');
   const [fullName, setFullName] = useState('');
-  const [group, setGroup] = useState('КСЦ-23');
-  const [department, setDepartment] = useState('Кафедра компьютерной инженерии');
+  const [group, setGroup] = useState('');
+  const [department, setDepartment] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -30,7 +28,7 @@ export default function AuthScreen({ onAuthSuccess }) {
           throw new Error('Заполните все обязательные поля');
         }
         if (role === 'student' && !group.trim()) {
-          throw new Error('Укажите учебную группу');
+          throw new Error('Введите вашу учебную группу');
         }
         if (role === 'teacher' && inviteCode.trim() !== TEACHER_INVITE_CODE) {
           throw new Error(`Неверный код преподавателя (код: ${TEACHER_INVITE_CODE})`);
@@ -38,8 +36,8 @@ export default function AuthScreen({ onAuthSuccess }) {
         const user = await dbService.registerUser({
           role,
           fullName,
-          group,
-          department,
+          group: group.trim().toUpperCase(),
+          department: department.trim() || 'Кафедра КИ',
           login,
           password
         });
@@ -175,30 +173,16 @@ export default function AuthScreen({ onAuthSuccess }) {
 
               {role === 'student' ? (
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Академическая группа</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Академическая группа
+                  </label>
                   <input
                     type="text"
                     value={group}
-                    onChange={(e) => setGroup(e.target.value)}
-                    placeholder="Например: КСЦ-23"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500"
+                    onChange={(e) => setGroup(e.target.value.toUpperCase())}
+                    placeholder="Введите название вашей группы (напр. КСЦ-23)"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white uppercase placeholder:normal-case focus:outline-none focus:border-blue-500"
                   />
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {PRESET_GROUPS.map((g) => (
-                      <button
-                        type="button"
-                        key={g}
-                        onClick={() => setGroup(g)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border transition ${
-                          group === g
-                            ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                            : 'bg-slate-950 border-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
                 </div>
               ) : (
                 <>
@@ -208,6 +192,7 @@ export default function AuthScreen({ onAuthSuccess }) {
                       type="text"
                       value={department}
                       onChange={(e) => setDepartment(e.target.value)}
+                      placeholder="Например: Кафедра компьютерной инженерии"
                       className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
@@ -234,7 +219,7 @@ export default function AuthScreen({ onAuthSuccess }) {
               type="text"
               value={login}
               onChange={(e) => setLogin(e.target.value)}
-              placeholder="student или ваш логин"
+              placeholder="Придумайте или введите логин"
               className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500"
             />
           </div>
@@ -284,7 +269,7 @@ export default function AuthScreen({ onAuthSuccess }) {
               onClick={() => quickDemo('student')}
               className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition"
             >
-              Студент (КСЦ-23)
+              Студент
             </button>
           </div>
         </div>
