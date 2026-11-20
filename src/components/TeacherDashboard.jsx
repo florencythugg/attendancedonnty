@@ -18,14 +18,16 @@ import {
   Search,
   UserPlus,
   Trash2,
-  X
+  X,
+  MapPin
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import {
   ROTATION_SECONDS,
   generateDynamicToken,
   getSecondsRemaining,
-  getTimeStep
+  getTimeStep,
+  getCurrentPositionAsync
 } from '../utils/crypto';
 import { exportLessonToExcel, exportSemesterSummaryToExcel } from '../utils/exportExcel';
 
@@ -35,6 +37,9 @@ export default function TeacherDashboard({ user, data, onLogout }) {
   const [group, setGroup] = useState('КСЦ-23');
   const [room, setRoom] = useState('Ауд. 8.204');
   const [lateMinutes, setLateMinutes] = useState(10);
+  const [useGeoFence, setUseGeoFence] = useState(false);
+  const [geoRadius, setGeoRadius] = useState(100);
+  const [geoError, setGeoError] = useState('');
   const [creating, setCreating] = useState(false);
 
   const [qrDataUrl, setQrDataUrl] = useState('');
@@ -45,7 +50,6 @@ export default function TeacherDashboard({ user, data, onLogout }) {
   const [selectedHistoryLesson, setSelectedHistoryLesson] = useState(null);
   const [analyticsGroup, setAnalyticsGroup] = useState('ALL');
 
-  // Состояние модального окна загрузки списка группы
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importGroup, setImportGroup] = useState('КСЦ-23');
   const [importText, setImportText] = useState('');
@@ -60,17 +64,17 @@ export default function TeacherDashboard({ user, data, onLogout }) {
     [data.users]
   );
 
-  const allGroups = useMemo(() => {
-    const set = new Set(['КСЦ-23', 'КИ-23а', 'КИ-23б']);
-    students.forEach((s) => s.group && set.add(s.group));
-    data.lessons.forEach((l) => l.group && set.add(l.group));
-    return Array.from(set);
-  }, [students, data.lessons]);
-
   const myLessons = useMemo(
     () => data.lessons.filter((l) => l.teacherId === user.id),
     [data.lessons, user.id]
   );
+
+  const allGroups = useMemo(() => {
+    const set = new Set();
+    students.forEach((s) => s.group && set.add(s.group));
+    data.lessons.forEach((l) => l.group && set.add(l.group));
+    return Array.from(set);
+  }, [students, data.lessons]);
 
   const activeLesson = useMemo(
     () => myLessons.find((l) => l.isActive) || null,
@@ -113,14 +117,23 @@ export default function TeacherDashboard({ user, data, onLogout }) {
     e.preventDefault();
     if (!subject.trim() || !group.trim()) return;
     setCreating(true);
+    setGeoError('');
     try {
+      let geo = null;
+      if (useGeoFence) {
+        const pos = await getCurrentPositionAsync();
+        geo = { lat: pos.lat, lng: pos.lng, radiusMeters: geoRadius };
+      }
       await dbService.createLesson({
         teacher: user,
         subject,
         group,
         room,
-        lateMinutes
+        lateMinutes,
+        geo
       });
+    } catch (err) {
+      setGeoError(err.message);
     } finally {
       setCreating(false);
     }
@@ -286,6 +299,9 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                           • {new Date(rec.markedAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                         </span>
                       )}
+                      {typeof rec?.distanceMeters === 'number' && (
+                        <span className="text-emerald-400">• {rec.distanceMeters} м</span>
+                      )}
                       {rec?.method === 'MANUAL' && <span className="text-blue-400">• Вручную</span>}
                     </div>
                   </div>
@@ -401,9 +417,9 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                       <input
                         type="text"
                         value={group}
-                        onChange={(e) => setGroup(e.target.value)}
+                        onChange={(e) => setGroup(e.target.value.toUpperCase())}
                         required
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white uppercase focus:outline-none focus:border-blue-500"
                       />
                     </div>
                     <div>
@@ -417,22 +433,24 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {allGroups.map((g) => (
-                      <button
-                        type="button"
-                        key={g}
-                        onClick={() => setGroup(g)}
-                        className={`text-xs px-2.5 py-1 rounded-lg border ${
-                          group === g
-                            ? 'bg-blue-600/20 border-blue-500 text-blue-300'
-                            : 'bg-slate-950 border-slate-800 text-slate-400'
-                        }`}
-                      >
-                        {g}
-                      </button>
-                    ))}
-                  </div>
+                  {allGroups.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {allGroups.map((g) => (
+                        <button
+                          type="button"
+                          key={g}
+                          onClick={() => setGroup(g)}
+                          className={`text-xs px-2.5 py-1 rounded-lg border ${
+                            group === g
+                              ? 'bg-blue-600/20 border-blue-500 text-blue-300'
+                              : 'bg-slate-950 border-slate-800 text-slate-400'
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-xs text-slate-400 mb-1">
@@ -450,13 +468,43 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                     </select>
                   </div>
 
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2.5">
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <span className="flex items-center gap-2 text-xs font-medium text-slate-200">
+                        <MapPin className="w-4 h-4 text-blue-400" />
+                        <span>Контроль геозоны аудитории (GPS)</span>
+                      </span>
+                      <input
+                        type="checkbox"
+                        checked={useGeoFence}
+                        onChange={(e) => setUseGeoFence(e.target.checked)}
+                        className="w-4 h-4 accent-blue-600"
+                      />
+                    </label>
+                    {useGeoFence && (
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
+                        <span className="text-[11px] text-slate-400">Допустимый радиус:</span>
+                        <select
+                          value={geoRadius}
+                          onChange={(e) => setGeoRadius(Number(e.target.value))}
+                          className="px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs text-white"
+                        >
+                          <option value={50}>50 метров (строго)</option>
+                          <option value={100}>100 метров (корпус)</option>
+                          <option value={250}>250 метров (кампус)</option>
+                        </select>
+                      </div>
+                    )}
+                    {geoError && <div className="text-[11px] text-rose-400">{geoError}</div>}
+                  </div>
+
                   <button
                     type="submit"
                     disabled={creating}
                     className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-sm font-semibold text-white flex items-center justify-center gap-2 shadow-lg shadow-blue-600/25"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>Запустить пару и открыть QR</span>
+                    <span>{creating ? 'Определение GPS...' : 'Запустить пару и открыть QR'}</span>
                   </button>
                 </form>
               </div>
@@ -468,6 +516,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                       <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/25">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         Идёт перекличка • {activeLesson.group}
+                        {activeLesson.geo && ` • GPS ≤ ${activeLesson.geo.radiusMeters}м`}
                       </span>
                       <h2 className="text-base font-bold text-white mt-1.5">{activeLesson.subject}</h2>
                       <div className="text-xs text-slate-400">{activeLesson.room}</div>
@@ -590,7 +639,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
               <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => {
-                    setImportGroup(analyticsGroup === 'ALL' ? 'КСЦ-23' : analyticsGroup);
+                    setImportGroup(analyticsGroup === 'ALL' ? '' : analyticsGroup);
                     setImportResult(null);
                     setImportModalOpen(true);
                   }}
@@ -715,7 +764,6 @@ export default function TeacherDashboard({ user, data, onLogout }) {
         )}
       </main>
 
-      {/* Модальное окно массовой загрузки списка группы */}
       {importModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-md space-y-4 shadow-2xl">
@@ -738,10 +786,10 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                 <input
                   type="text"
                   value={importGroup}
-                  onChange={(e) => setImportGroup(e.target.value)}
-                  placeholder="Например: КСЦ-23"
+                  onChange={(e) => setImportGroup(e.target.value.toUpperCase())}
+                  placeholder="Введите название группы"
                   required
-                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-800 text-sm text-white uppercase placeholder:normal-case focus:outline-none focus:border-blue-500"
                 />
               </div>
 
