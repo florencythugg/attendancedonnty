@@ -63,7 +63,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
   const allGroups = useMemo(() => {
     const set = new Set(['КСЦ-23', 'КИ-23а', 'КИ-23б']);
     students.forEach((s) => s.group && set.add(s.group));
-    myLessons.forEach((l) => l.group && set.add(l.group));
+    data.lessons.forEach((l) => l.group && set.add(l.group));
     return Array.from(set);
   }, [students, data.lessons]);
 
