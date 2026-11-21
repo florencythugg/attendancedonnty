@@ -20,7 +20,8 @@ import {
   Trash2,
   X,
   MapPin,
-  Sparkles
+  Sparkles,
+  BookmarkCheck
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import {
@@ -34,9 +35,9 @@ import { exportLessonToExcel, exportSemesterSummaryToExcel } from '../utils/expo
 
 export default function TeacherDashboard({ user, data, onLogout }) {
   const [tab, setTab] = useState('active');
-  const [subject, setSubject] = useState('Проектирование информационных систем');
-  const [group, setGroup] = useState('КСЦ-23');
-  const [room, setRoom] = useState('Ауд. 8.204');
+  const [subject, setSubject] = useState('');
+  const [group, setGroup] = useState('');
+  const [room, setRoom] = useState('');
   const [lateMinutes, setLateMinutes] = useState(10);
   const [useGeoFence, setUseGeoFence] = useState(false);
   const [geoRadius, setGeoRadius] = useState(100);
@@ -71,11 +72,34 @@ export default function TeacherDashboard({ user, data, onLogout }) {
     [data.lessons, user.id]
   );
 
+  // Умные авто-шаблоны пар преподавателя (ввёл один раз — сохранилось навсегда)
+  const savedPresets = useMemo(() => {
+    const map = new Map();
+    myLessons.forEach((l) => {
+      const key = `${l.subject.toLowerCase()}__${l.group.toUpperCase()}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          subject: l.subject,
+          group: l.group,
+          room: l.room
+        });
+      }
+    });
+    return Array.from(map.values()).slice(0, 8);
+  }, [myLessons]);
+
+  const savedSubjects = useMemo(() => {
+    const set = new Set();
+    myLessons.forEach((l) => l.subject && set.add(l.subject));
+    return Array.from(set);
+  }, [myLessons]);
+
   const allGroups = useMemo(() => {
     const set = new Set();
     students.forEach((s) => s.group && set.add(s.group));
     data.lessons.forEach((l) => l.group && set.add(l.group));
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [students, data.lessons]);
 
   const activeLesson = useMemo(
@@ -116,6 +140,12 @@ export default function TeacherDashboard({ user, data, onLogout }) {
       clearInterval(timer);
     };
   }, [activeLesson]);
+
+  const applyPreset = (preset) => {
+    setSubject(preset.subject);
+    setGroup(preset.group);
+    setRoom(preset.room || '');
+  };
 
   const handleStartLesson = async (e) => {
     e.preventDefault();
@@ -345,7 +375,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
       <div className="fixed inset-0 z-50 bg-[#030712] flex flex-col items-center justify-center p-6 text-center">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div className="animate-orb absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-blue-600/20 blur-[120px]" />
-          <div className="animate-orb-delayed absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-indigo-600/20 blur-[120px]" />
+          <div className="animate-orb-delayed bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-indigo-600/20 blur-[120px]" />
         </div>
         <button
           onClick={() => setFullscreenQr(false)}
@@ -354,7 +384,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
           <Minimize2 className="w-5 h-5" />
         </button>
         <div className="relative z-10">
-          <div className="text-sm font-bold text-blue-400 mb-1">
+          <div className="text-sm font-bold text-cyan-400 mb-1">
             {activeLesson.group} • {activeLesson.room}
           </div>
           <h2 className="text-2xl font-extrabold text-white mb-6">{activeLesson.subject}</h2>
@@ -383,8 +413,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#030712] pb-28 overflow-x-hidden">
-      {/* Фоновые орбы */}
+    <div className="relative min-h-[100dvh] bg-[#030712] pb-28 overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="animate-orb -top-20 -right-20 absolute w-72 h-72 rounded-full bg-blue-600/15 blur-[90px]" />
         <div className="animate-orb-delayed bottom-10 -left-20 absolute w-72 h-72 rounded-full bg-indigo-600/15 blur-[90px]" />
@@ -397,8 +426,8 @@ export default function TeacherDashboard({ user, data, onLogout }) {
               {user.fullName[0]}
             </div>
             <div>
-              <div className="text-[11px] text-blue-400 font-bold flex items-center gap-1 uppercase tracking-wider">
-                <Shield className="w-3 h-3" /> Преподаватель
+              <div className="text-[11px] text-cyan-400 font-bold flex items-center gap-1 uppercase tracking-wider">
+                <Shield className="w-3 h-3" /> Pulse • Преподаватель
               </div>
               <div className="text-sm font-bold text-white">{user.fullName}</div>
             </div>
@@ -416,131 +445,173 @@ export default function TeacherDashboard({ user, data, onLogout }) {
           {tab === 'active' && (
             <>
               {!activeLesson ? (
-                <div className="glass-card rounded-3xl p-5">
-                  <div className="flex items-center gap-3 mb-5">
-                    <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-600/25 to-indigo-600/25 border border-blue-500/30 text-blue-400">
-                      <Plus className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-white">Начать новую пару</h2>
-                      <p className="text-xs text-slate-400">Генерация криптографического QR-кода</p>
-                    </div>
-                  </div>
-
-                  <form onSubmit={handleStartLesson} className="space-y-3.5">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
-                        Дисциплина
-                      </label>
-                      <input
-                        type="text"
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
-                          Группа
-                        </label>
-                        <input
-                          type="text"
-                          value={group}
-                          onChange={(e) => setGroup(e.target.value.toUpperCase())}
-                          required
-                          className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white uppercase focus:outline-none focus:border-blue-500 transition"
-                        />
+                <div className="space-y-4">
+                  {/* Сохраненные шаблоны пар в один тап */}
+                  {savedPresets.length > 0 && (
+                    <div className="glass-card rounded-3xl p-4">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-cyan-400 uppercase tracking-wider mb-2.5">
+                        <BookmarkCheck className="w-3.5 h-3.5" />
+                        <span>Мои сохранённые пары (нажмите для подстановки)</span>
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
-                          Аудитория
-                        </label>
-                        <input
-                          type="text"
-                          value={room}
-                          onChange={(e) => setRoom(e.target.value)}
-                          className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500 transition"
-                        />
-                      </div>
-                    </div>
-
-                    {allGroups.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5">
-                        {allGroups.map((g) => (
+                      <div className="flex flex-wrap gap-2">
+                        {savedPresets.map((p) => (
                           <button
+                            key={p.key}
                             type="button"
-                            key={g}
-                            onClick={() => setGroup(g)}
-                            className={`text-xs px-3 py-1 rounded-xl border transition ${
-                              group === g
-                                ? 'bg-blue-600/25 border-blue-500 text-blue-300 font-semibold'
-                                : 'bg-white/5 border-white/10 text-slate-400'
-                            }`}
+                            onClick={() => applyPreset(p)}
+                            className="text-left px-3 py-2 rounded-2xl bg-white/5 hover:bg-blue-600/20 border border-white/10 hover:border-blue-500/40 active:scale-95 transition"
                           >
-                            {g}
+                            <div className="text-xs font-bold text-white">{p.subject}</div>
+                            <div className="text-[10px] text-slate-400">
+                              {p.group} {p.room ? `• ${p.room}` : ''}
+                            </div>
                           </button>
                         ))}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
-                        Допуск на опоздание
-                      </label>
-                      <select
-                        value={lateMinutes}
-                        onChange={(e) => setLateMinutes(Number(e.target.value))}
-                        className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500"
-                      >
-                        <option value={5}>5 минут</option>
-                        <option value={10}>10 минут</option>
-                        <option value={15}>15 минут</option>
-                        <option value={30}>30 минут</option>
-                      </select>
+                  <div className="glass-card rounded-3xl p-5">
+                    <div className="flex items-center gap-3 mb-5">
+                      <div className="p-2.5 rounded-2xl bg-gradient-to-br from-blue-600/25 to-indigo-600/25 border border-blue-500/30 text-blue-400">
+                        <Plus className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-white">Начать новую пару</h2>
+                        <p className="text-xs text-slate-400">Предмет и группа сохранятся автоматически</p>
+                      </div>
                     </div>
 
-                    <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 space-y-2.5">
-                      <label className="flex items-center justify-between cursor-pointer">
-                        <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                          <MapPin className="w-4 h-4 text-cyan-400" />
-                          <span>Контроль геозоны аудитории (GPS)</span>
-                        </span>
+                    <form onSubmit={handleStartLesson} className="space-y-3.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                          Дисциплина
+                        </label>
                         <input
-                          type="checkbox"
-                          checked={useGeoFence}
-                          onChange={(e) => setUseGeoFence(e.target.checked)}
-                          className="w-4 h-4 accent-blue-600"
+                          type="text"
+                          list="pulse-subjects"
+                          value={subject}
+                          onChange={(e) => setSubject(e.target.value)}
+                          placeholder="Введите название предмета (напр. Экономика)"
+                          required
+                          className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
                         />
-                      </label>
-                      {useGeoFence && (
-                        <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
-                          <span className="text-[11px] text-slate-400">Допустимый радиус:</span>
-                          <select
-                            value={geoRadius}
-                            onChange={(e) => setGeoRadius(Number(e.target.value))}
-                            className="px-2.5 py-1 rounded-xl bg-slate-900 border border-white/10 text-xs text-white"
-                          >
-                            <option value={50}>50 метров (строго)</option>
-                            <option value={100}>100 метров (корпус)</option>
-                            <option value={250}>250 метров (кампус)</option>
-                          </select>
+                        <datalist id="pulse-subjects">
+                          {savedSubjects.map((s) => (
+                            <option key={s} value={s} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                            Группа
+                          </label>
+                          <input
+                            type="text"
+                            list="pulse-groups"
+                            value={group}
+                            onChange={(e) => setGroup(e.target.value.toUpperCase())}
+                            placeholder="Напр. КСЦ-23"
+                            required
+                            className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white uppercase placeholder:normal-case placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
+                          />
+                          <datalist id="pulse-groups">
+                            {allGroups.map((g) => (
+                              <option key={g} value={g} />
+                            ))}
+                          </datalist>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                            Аудитория
+                          </label>
+                          <input
+                            type="text"
+                            value={room}
+                            onChange={(e) => setRoom(e.target.value)}
+                            placeholder="Напр. Ауд. 8.204"
+                            className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
+                          />
+                        </div>
+                      </div>
+
+                      {allGroups.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {allGroups.slice(0, 8).map((g) => (
+                            <button
+                              type="button"
+                              key={g}
+                              onClick={() => setGroup(g)}
+                              className={`text-xs px-3 py-1 rounded-xl border transition ${
+                                group === g
+                                  ? 'bg-blue-600/25 border-blue-500 text-blue-300 font-semibold'
+                                  : 'bg-white/5 border-white/10 text-slate-400'
+                              }`}
+                            >
+                              {g}
+                            </button>
+                          ))}
                         </div>
                       )}
-                      {geoError && <div className="text-[11px] text-rose-400">{geoError}</div>}
-                    </div>
 
-                    <button
-                      type="submit"
-                      disabled={creating}
-                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:brightness-110 active:scale-[0.98] transition-all text-sm font-bold text-white flex items-center justify-center gap-2 shadow-xl shadow-blue-600/25"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>{creating ? 'Определение GPS...' : 'Запустить пару и открыть QR'}</span>
-                    </button>
-                  </form>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
+                          Допуск на опоздание
+                        </label>
+                        <select
+                          value={lateMinutes}
+                          onChange={(e) => setLateMinutes(Number(e.target.value))}
+                          className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white focus:outline-none focus:border-blue-500"
+                        >
+                          <option value={5}>5 минут</option>
+                          <option value={10}>10 минут</option>
+                          <option value={15}>15 минут</option>
+                          <option value={30}>30 минут</option>
+                        </select>
+                      </div>
+
+                      <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 space-y-2.5">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                            <MapPin className="w-4 h-4 text-cyan-400" />
+                            <span>Контроль геозоны аудитории (GPS)</span>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={useGeoFence}
+                            onChange={(e) => setUseGeoFence(e.target.checked)}
+                            className="w-4 h-4 accent-blue-600"
+                          />
+                        </label>
+                        {useGeoFence && (
+                          <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+                            <span className="text-[11px] text-slate-400">Допустимый радиус:</span>
+                            <select
+                              value={geoRadius}
+                              onChange={(e) => setGeoRadius(Number(e.target.value))}
+                              className="px-2.5 py-1 rounded-xl bg-slate-900 border border-white/10 text-xs text-white"
+                            >
+                              <option value={50}>50 метров (строго)</option>
+                              <option value={100}>100 метров (корпус)</option>
+                              <option value={250}>250 метров (кампус)</option>
+                            </select>
+                          </div>
+                        )}
+                        {geoError && <div className="text-[11px] text-rose-400">{geoError}</div>}
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={creating}
+                        className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:brightness-110 active:scale-[0.98] transition-all text-sm font-bold text-white flex items-center justify-center gap-2 shadow-xl shadow-blue-600/25"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>{creating ? 'Определение GPS...' : 'Запустить пару и открыть QR'}</span>
+                      </button>
+                    </form>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -565,7 +636,6 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                     </div>
 
                     <div className="flex flex-col items-center my-4">
-                      {/* Неоновая рамка вокруг QR */}
                       <div className="relative p-1 rounded-3xl bg-gradient-to-tr from-blue-500 via-cyan-400 to-indigo-500 shadow-[0_0_40px_rgba(37,99,235,0.3)]">
                         <div
                           className={`bg-white p-3.5 rounded-[1.35rem] transition-transform duration-300 ${
