@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
+import QRCode from 'qrcode';
 import {
   ScanLine,
   BarChart3,
@@ -12,10 +13,252 @@ import {
   LogOut,
   AlertTriangle,
   Smartphone,
-  Sparkles
+  Sparkles,
+  RotateCw,
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 import { dbService } from '../services/db';
-import { verifyDynamicToken, getOrCreateDeviceId, getCurrentPositionAsync } from '../utils/crypto';
+import {
+  verifyDynamicToken,
+  getOrCreateDeviceId,
+  getCurrentPositionAsync,
+  triggerFeedback
+} from '../utils/crypto';
+
+function HolographicStudentCard({ user, deviceId, attendancePct }) {
+  const [tilt, setTilt] = useState({ x: 0, y: 0, glareX: 50, glareY: 50 });
+  const [flipped, setFlipped] = useState(false);
+  const [studentQrUrl, setStudentQrUrl] = useState('');
+  const [gyroEnabled, setGyroEnabled] = useState(false);
+  const cardRef = useRef(null);
+
+  const cardNumber = useMemo(() => {
+    const raw = (user.id || '000000').replace(/\D/g, '');
+    const padded = (raw + '20268419').slice(0, 8);
+    return `${padded.slice(0, 4)} ${padded.slice(4, 8)}`;
+  }, [user.id]);
+
+  // Генерация персонального QR-кода студенческого ID
+  useEffect(() => {
+    const payload = JSON.stringify({
+      type: 'PULSE_STUDENT_ID',
+      uid: user.id,
+      name: user.fullName,
+      group: user.group,
+      dev: deviceId
+    });
+    QRCode.toDataURL(payload, {
+      width: 220,
+      margin: 1,
+      color: { dark: '#060b19', light: '#ffffff' }
+    }).then(setStudentQrUrl);
+  }, [user, deviceId]);
+
+  // Реакция на наклон телефона (гироскоп)
+  useEffect(() => {
+    const handleOrientation = (e) => {
+      if (e.gamma === null || e.beta === null) return;
+      setGyroEnabled(true);
+      const maxAngle = 22;
+      const clampedX = Math.max(-maxAngle, Math.min(maxAngle, e.gamma));
+      const clampedY = Math.max(-maxAngle, Math.min(maxAngle, e.beta - 45));
+      const rotateY = (clampedX / maxAngle) * 14;
+      const rotateX = -(clampedY / maxAngle) * 14;
+      const glareX = 50 + (clampedX / maxAngle) * 42;
+      const glareY = 50 + (clampedY / maxAngle) * 42;
+      setTilt({ x: rotateX, y: rotateY, glareX, glareY });
+    };
+
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
+  }, []);
+
+  // Реакция на мышь/палец на экране
+  const handlePointerMove = (e) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const relX = (e.clientX - rect.left) / rect.width;
+    const relY = (e.clientY - rect.top) / rect.height;
+    const rotateY = (relX - 0.5) * 22;
+    const rotateX = -(relY - 0.5) * 22;
+    setTilt({
+      x: rotateX,
+      y: rotateY,
+      glareX: relX * 100,
+      glareY: relY * 100
+    });
+  };
+
+  const resetTilt = () => {
+    setTilt({ x: 0, y: 0, glareX: 50, glareY: 50 });
+  };
+
+  const requestGyroPermission = async () => {
+    if (
+      typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function'
+    ) {
+      try {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res === 'granted') setGyroEnabled(true);
+      } catch {}
+    }
+  };
+
+  return (
+    <div className="space-y-3" style={{ perspective: '1100px' }}>
+      <div
+        ref={cardRef}
+        onPointerMove={handlePointerMove}
+        onPointerLeave={resetTilt}
+        onClick={() => {
+          requestGyroPermission();
+          setFlipped((prev) => !prev);
+        }}
+        style={{
+          transform: `rotateX(${tilt.x}deg) rotateY(${tilt.y + (flipped ? 180 : 0)}deg)`,
+          transformStyle: 'preserve-3d',
+          transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)'
+        }}
+        className="relative w-full aspect-[1.58/1] rounded-[1.75rem] cursor-pointer select-none shadow-[0_25px_55px_-12px_rgba(34,211,238,0.28)]"
+      >
+        {/* ЛИЦЕВАЯ СТОРОНА БИЛЕТА */}
+        <div
+          style={{ backfaceVisibility: 'hidden' }}
+          className="absolute inset-0 rounded-[1.75rem] overflow-hidden border border-white/20 bg-gradient-to-br from-[#0c1938] via-[#091229] to-[#131c42] p-5 flex flex-col justify-between"
+        >
+          {/* Декоративные сетка и орбы внутри карты */}
+          <div
+            className="absolute inset-0 opacity-20 pointer-events-none"
+            style={{
+              backgroundImage:
+                'radial-gradient(circle at 1.5px 1.5px, rgba(56,189,248,0.7) 1px, transparent 0)',
+              backgroundSize: '14px 14px'
+            }}
+          />
+          <div className="absolute -right-12 -top-12 w-44 h-44 rounded-full bg-cyan-400/25 blur-2xl pointer-events-none" />
+          <div className="absolute -left-10 -bottom-12 w-44 h-44 rounded-full bg-indigo-500/30 blur-2xl pointer-events-none" />
+
+          {/* Радужный голографический перелив, двигающийся при наклоне */}
+          <div
+            className="absolute inset-0 pointer-events-none mix-blend-overlay transition-opacity duration-200"
+            style={{
+              background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(255,255,255,0.75) 0%, rgba(34,211,238,0.45) 28%, rgba(168,85,247,0.35) 55%, transparent 80%)`
+            }}
+          />
+          <div
+            className="absolute inset-0 pointer-events-none opacity-35"
+            style={{
+              background: `linear-gradient(${115 + tilt.y * 2}deg, transparent 25%, rgba(56,189,248,0.35) 45%, rgba(244,114,182,0.35) 55%, transparent 75%)`
+            }}
+          />
+
+          {/* Верхняя шапка билета */}
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-500 to-cyan-400 flex items-center justify-center shadow-md">
+                <Activity className="w-4 h-4 text-slate-950 stroke-[2.5]" />
+              </div>
+              <div>
+                <div className="text-xs font-black tracking-wider text-white uppercase">
+                  Pulse ID
+                </div>
+                <div className="text-[9px] text-cyan-300/80 uppercase tracking-widest">
+                  Студенческий билет
+                </div>
+              </div>
+            </div>
+
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 backdrop-blur-md">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              АКТИВЕН
+            </span>
+          </div>
+
+          {/* Центральная часть: ФИО и группа */}
+          <div className="relative z-10 my-auto pt-2">
+            <div className="text-[10px] text-slate-400 uppercase tracking-widest">
+              Владелец карты
+            </div>
+            <div className="text-lg sm:text-xl font-extrabold text-white tracking-tight leading-snug mt-0.5">
+              {user.fullName}
+            </div>
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-white/10 border border-white/15 backdrop-blur-md">
+              <span className="text-[10px] text-slate-300">Группа:</span>
+              <span className="text-xs font-black text-cyan-300 tracking-wide">{user.group}</span>
+            </div>
+          </div>
+
+          {/* Нижняя полоса билета */}
+          <div className="relative z-10 flex items-end justify-between pt-2 border-t border-white/10">
+            <div>
+              <div className="text-[9px] text-slate-400 uppercase tracking-wider">Номер ID</div>
+              <div className="font-mono text-xs font-bold tracking-widest text-slate-200">
+                № {cardNumber}
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-[9px] text-slate-400 uppercase tracking-wider">Посещаемость</div>
+              <div className="text-xs font-extrabold text-emerald-400">{attendancePct}%</div>
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-cyan-300 font-semibold">
+              <RotateCw className="w-3 h-3" />
+              <span>QR-код</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ОБОРОТНАЯ СТОРОНА БИЛЕТА (QR-ПРОПУСК) */}
+        <div
+          style={{
+            backfaceVisibility: 'hidden',
+            transform: 'rotateY(180deg)'
+          }}
+          className="absolute inset-0 rounded-[1.75rem] overflow-hidden border border-cyan-400/30 bg-gradient-to-br from-[#091229] via-[#060b19] to-[#0f172a] p-5 flex items-center justify-between gap-4"
+        >
+          <div className="bg-white p-2.5 rounded-2xl shadow-[0_0_25px_rgba(34,211,238,0.35)] shrink-0">
+            {studentQrUrl && (
+              <img src={studentQrUrl} alt="Student ID QR" className="w-28 h-28 sm:w-32 sm:h-32" />
+            )}
+          </div>
+
+          <div className="flex-1 text-left space-y-2">
+            <div className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
+              <ShieldCheck className="w-3.5 h-3.5" /> Цифровой пропуск
+            </div>
+            <div className="text-sm font-bold text-white leading-tight">{user.fullName}</div>
+            <div className="text-xs text-slate-400">Группа {user.group}</div>
+            <div className="pt-1">
+              <div className="text-[9px] text-slate-500 uppercase">Device Hash</div>
+              <div className="text-[10px] font-mono text-slate-300 truncate max-w-[150px]">
+                {deviceId}
+              </div>
+            </div>
+            <div className="text-[10px] text-cyan-400/90 flex items-center gap-1 pt-1">
+              <RotateCw className="w-3 h-3" /> Нажмите, чтобы перевернуть
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between px-1 text-[11px] text-slate-500">
+        <span>
+          {gyroEnabled
+            ? 'Гироскоп активен — наклоните телефон для перелива'
+            : 'Нажмите на карту, чтобы открыть QR-пропуск'}
+        </span>
+        <button
+          type="button"
+          onClick={() => setFlipped((prev) => !prev)}
+          className="text-cyan-400 font-semibold hover:underline"
+        >
+          {flipped ? 'Лицевая сторона' : 'Показать QR'}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function StudentDashboard({ user, data, onLogout }) {
   const [tab, setTab] = useState('scan');
@@ -106,6 +349,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
       );
     } catch {
       setCameraActive(false);
+      triggerFeedback('error');
       setFeedback({
         type: 'error',
         title: 'Нет доступа к камере',
@@ -122,7 +366,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
       try {
         parsed = JSON.parse(rawText);
       } catch {
-        throw new Error('Этот QR-код не относится к системе Attendance Pro');
+        throw new Error('Этот QR-код не относится к системе Pulse');
       }
 
       const lesson = await dbService.getLessonById(parsed.lid);
@@ -147,6 +391,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
         studentGeo
       });
 
+      triggerFeedback('success');
       setFeedback({
         type: 'success',
         title: 'Отметка подтверждена!',
@@ -155,6 +400,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
         }`
       });
     } catch (err) {
+      triggerFeedback('error');
       setFeedback({
         type: 'error',
         title: 'Ошибка верификации',
@@ -169,6 +415,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
     e.preventDefault();
     const code = pinInput.trim();
     if (code.length !== 6) {
+      triggerFeedback('error');
       setFeedback({ type: 'error', title: 'Неверный формат', detail: 'Введите 6-значный код с экрана преподавателя' });
       return;
     }
@@ -202,6 +449,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
         studentGeo
       });
 
+      triggerFeedback('success');
       setPinInput('');
       setFeedback({
         type: 'success',
@@ -211,6 +459,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
         }`
       });
     } catch (err) {
+      triggerFeedback('error');
       setFeedback({
         type: 'error',
         title: 'Не удалось отметиться',
@@ -222,8 +471,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#030712] pb-28 overflow-x-hidden">
-      {/* Фоновые градиентные орбы */}
+    <div className="relative min-h-[100dvh] bg-[#030712] pb-28 overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="animate-orb -top-24 -left-24 w-80 h-80 rounded-full bg-blue-600/15 blur-[95px]" />
         <div className="animate-orb-delayed bottom-10 -right-24 w-80 h-80 rounded-full bg-cyan-500/15 blur-[95px]" />
@@ -237,7 +485,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
             </div>
             <div>
               <div className="text-[11px] text-cyan-400 font-bold uppercase tracking-wider">
-                Студент • {user.group}
+                Pulse • {user.group}
               </div>
               <div className="text-sm font-bold text-white">{user.fullName}</div>
             </div>
@@ -300,7 +548,6 @@ export default function StudentDashboard({ user, data, onLogout }) {
 
               {scanMode === 'camera' ? (
                 <div className="glass-card rounded-3xl p-5 text-center">
-                  {/* Видоискатель с лазерной полосой при активной камере */}
                   <div className={`relative overflow-hidden rounded-2xl ${cameraActive ? 'mb-3 ring-2 ring-cyan-400/60' : ''}`}>
                     <div id="qr-reader" className="w-full" />
                     {cameraActive && (
@@ -496,31 +743,30 @@ export default function StudentDashboard({ user, data, onLogout }) {
           )}
 
           {tab === 'profile' && (
-            <div className="glass-card rounded-3xl p-5 space-y-4">
-              <div className="flex items-center gap-3.5">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-extrabold text-xl shadow-lg shadow-blue-600/25">
-                  {user.fullName[0]}
-                </div>
-                <div>
-                  <div className="text-base font-extrabold text-white">{user.fullName}</div>
-                  <div className="text-xs text-slate-400">Группа {user.group} • Логин: {user.login}</div>
-                </div>
-              </div>
+            <div className="space-y-4">
+              {/* Голографический цифровой студенческий билет */}
+              <HolographicStudentCard
+                user={user}
+                deviceId={deviceId}
+                attendancePct={stats.pct}
+              />
 
-              <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-white/10 flex items-center gap-3">
-                <Smartphone className="w-5 h-5 text-cyan-400 shrink-0" />
-                <div>
-                  <div className="text-[11px] text-slate-400">Идентификатор устройства (Anti-Spoofing)</div>
-                  <div className="text-xs font-mono text-white mt-0.5">{deviceId}</div>
+              <div className="glass-card rounded-3xl p-5 space-y-3.5">
+                <div className="p-3.5 rounded-2xl bg-slate-950/70 border border-white/10 flex items-center gap-3">
+                  <Smartphone className="w-5 h-5 text-cyan-400 shrink-0" />
+                  <div>
+                    <div className="text-[11px] text-slate-400">Привязанное устройство (Anti-Spoofing)</div>
+                    <div className="text-xs font-mono text-white mt-0.5">{deviceId}</div>
+                  </div>
                 </div>
-              </div>
 
-              <button
-                onClick={onLogout}
-                className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold active:scale-[0.98] transition"
-              >
-                Выйти из аккаунта
-              </button>
+                <button
+                  onClick={onLogout}
+                  className="w-full py-3 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-bold active:scale-[0.98] transition"
+                >
+                  Выйти из аккаунта
+                </button>
+              </div>
             </div>
           )}
         </main>
