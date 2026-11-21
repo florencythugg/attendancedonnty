@@ -3,19 +3,22 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    -webkit-tap-highlight-color: transparent;
-    overscroll-behavior-y: none;
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    min-height: 100dvh;
     background-color: #030712;
     color: #f8fafc;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
   }
 }
 
 .pb-safe {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
 }
 
-/* Стеклянные карточки (Glassmorphism) */
 .glass-card {
   background: rgba(15, 23, 42, 0.65);
   backdrop-filter: blur(18px);
@@ -25,13 +28,12 @@
 }
 
 .glass-nav {
-  background: rgba(9, 13, 26, 0.82);
+  background: rgba(3, 7, 18, 0.94);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Фоновые светящиеся сферы */
 @keyframes floatOrb {
   0%, 100% {
     transform: translate(0px, 0px) scale(1);
@@ -49,7 +51,6 @@
   animation: floatOrb 12s ease-in-out infinite reverse;
 }
 
-/* Плавное появление контента при переключении вкладок */
 @keyframes fadeSlideUp {
   from {
     opacity: 0;
@@ -65,7 +66,6 @@
   animation: fadeSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-/* Лазерный луч сканера QR */
 @keyframes scanLaser {
   0%, 100% {
     top: 8%;
@@ -81,7 +81,6 @@
   animation: scanLaser 2.2s ease-in-out infinite;
 }
 
-/* Стилизация камеры html5-qrcode */
 #qr-reader {
   border: none !important;
 }
