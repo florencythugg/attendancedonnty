@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { QrCode, GraduationCap, UserCheck, ShieldCheck, Cloud, HardDrive, ArrowRight, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Activity, GraduationCap, UserCheck, ShieldCheck, Cloud, HardDrive, ArrowRight, Sparkles } from 'lucide-react';
 import { dbService } from '../services/db';
 import { TEACHER_INVITE_CODE } from '../firebaseConfig';
 
@@ -14,6 +14,21 @@ export default function AuthScreen({ onAuthSuccess }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [knownGroups, setKnownGroups] = useState([]);
+
+  useEffect(() => {
+    const unsub = dbService.subscribeAll((d) => {
+      const set = new Set();
+      d.users.forEach((u) => u.group && set.add(u.group));
+      d.lessons.forEach((l) => l.group && set.add(l.group));
+      setKnownGroups(Array.from(set).sort());
+    });
+    return () => unsub && unsub();
+  }, []);
+
+  const filteredGroups = group.trim()
+    ? knownGroups.filter((g) => g.includes(group.trim().toUpperCase()) && g !== group.trim().toUpperCase())
+    : knownGroups.slice(0, 6);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -85,20 +100,18 @@ export default function AuthScreen({ onAuthSuccess }) {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#030712] overflow-hidden flex flex-col justify-center px-4 py-8">
-      {/* Анимированные фоновые градиенты */}
+    <div className="relative min-h-[100dvh] bg-[#030712] overflow-hidden flex flex-col justify-center px-4 py-8">
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
-        <div className="animate-orb absolute -top-24 -left-24 w-80 h-80 rounded-full bg-blue-600/20 blur-[90px]" />
-        <div className="animate-orb-delayed absolute top-1/2 -right-24 w-80 h-80 rounded-full bg-indigo-600/20 blur-[90px]" />
-        <div className="animate-orb absolute -bottom-24 left-1/3 w-72 h-72 rounded-full bg-cyan-500/15 blur-[90px]" />
+        <div className="animate-orb -top-24 -left-24 absolute w-80 h-80 rounded-full bg-blue-600/20 blur-[90px]" />
+        <div className="animate-orb-delayed top-1/2 -right-24 absolute w-80 h-80 rounded-full bg-indigo-600/20 blur-[90px]" />
+        <div className="animate-orb -bottom-24 left-1/3 absolute w-72 h-72 rounded-full bg-cyan-500/15 blur-[90px]" />
       </div>
 
       <div className="relative z-10 w-full max-w-md mx-auto animate-tab-enter">
-        {/* Логотип и статус */}
         <div className="text-center mb-7">
           <div className="relative inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-500 p-[1px] shadow-2xl shadow-blue-500/30 mb-4">
-            <div className="w-full h-full rounded-3xl bg-slate-950/80 backdrop-blur-xl flex items-center justify-center">
-              <QrCode className="w-10 h-10 text-blue-400" />
+            <div className="w-full h-full rounded-3xl bg-slate-950/85 backdrop-blur-xl flex items-center justify-center">
+              <Activity className="w-10 h-10 text-cyan-400" />
             </div>
             <span className="absolute -top-1 -right-1 flex h-4 w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -106,18 +119,18 @@ export default function AuthScreen({ onAuthSuccess }) {
             </span>
           </div>
 
-          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-blue-100 to-indigo-300 bg-clip-text text-transparent">
-            Attendance Pro
+          <h1 className="text-4xl font-black tracking-tight bg-gradient-to-r from-white via-cyan-100 to-blue-400 bg-clip-text text-transparent">
+            Pulse
           </h1>
           <p className="text-xs text-slate-400 mt-1.5 tracking-wide">
-            Смарт-система контроля посещаемости • HMAC & GPS
+            Умный контроль посещаемости • QR & GPS
           </p>
 
           <div className="mt-3.5 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-[11px] font-medium glass-card text-slate-300">
             {dbService.isCloud ? (
               <>
                 <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Cloud Sync: Firebase Online</span>
+                <span>Облачная синхронизация активна</span>
               </>
             ) : (
               <>
@@ -128,7 +141,6 @@ export default function AuthScreen({ onAuthSuccess }) {
           </div>
         </div>
 
-        {/* Основная стеклянная карточка */}
         <div className="glass-card rounded-3xl p-6">
           <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/80 rounded-2xl border border-white/5 mb-5">
             <button
@@ -210,6 +222,20 @@ export default function AuthScreen({ onAuthSuccess }) {
                       placeholder="Введите вашу группу (напр. КСЦ-23)"
                       className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white uppercase placeholder:normal-case placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
                     />
+                    {filteredGroups.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {filteredGroups.map((g) => (
+                          <button
+                            type="button"
+                            key={g}
+                            onClick={() => setGroup(g)}
+                            className="text-[11px] px-2.5 py-1 rounded-xl bg-white/5 hover:bg-blue-600/20 border border-white/10 text-slate-300 transition"
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <>
@@ -287,7 +313,7 @@ export default function AuthScreen({ onAuthSuccess }) {
           <div className="mt-6 pt-4 border-t border-white/10">
             <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mb-2.5">
               <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Быстрый демо-вход (для презентации):</span>
+              <span>Быстрый демо-вход:</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <button
