@@ -1,14 +1,14 @@
 {
-  "appId": "ru.donntu.attendancepro",
-  "appName": "Attendance Pro",
+  "appId": "ru.donntu.pulse",
+  "appName": "Pulse",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 1200,
-      "backgroundColor": "#0f172a"
+      "launchShowDuration": 1000,
+      "backgroundColor": "#030712"
     }
   }
 }
