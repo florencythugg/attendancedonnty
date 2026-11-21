@@ -122,3 +122,52 @@ export function getCurrentPositionAsync(timeoutMs = 7000) {
     );
   });
 }
+// Тактильный виброотклик и синтезированный звуковой сигнал (без внешних аудиофайлов)
+export function triggerFeedback(type = 'success') {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      if (type === 'success') {
+        navigator.vibrate([45, 55, 95]);
+      } else {
+        navigator.vibrate([70, 40, 70, 40, 70]);
+      }
+    }
+  } catch {}
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    if (type === 'success') {
+      // Мягкий восходящий двузвучный сигнал подтверждения (C5 -> G5)
+      [523.25, 783.99].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.11);
+        gain.gain.setValueAtTime(0.001, now + idx * 0.11);
+        gain.gain.exponentialRampToValueAtTime(0.16, now + idx * 0.11 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.11 + 0.28);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.11);
+        osc.stop(now + idx * 0.11 + 0.3);
+      });
+    } else {
+      // Мягкий низкий сигнал ошибки
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(190, now);
+      osc.frequency.exponentialRampToValueAtTime(130, now + 0.25);
+      gain.gain.setValueAtTime(0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.3);
+    }
+  } catch {}
+}
