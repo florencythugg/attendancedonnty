@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GraduationCap, UserCheck, Cloud, HardDrive, ArrowRight, Sparkles } from 'lucide-react';
+import { GraduationCap, UserCheck, Cloud, HardDrive, ArrowRight } from 'lucide-react';
 import { dbService } from '../services/db';
 import { TEACHER_INVITE_CODE } from '../firebaseConfig';
 
@@ -152,40 +152,6 @@ export default function AuthScreen({ onAuthSuccess }) {
       }
     } catch (err) {
       setError(err.message || 'Ошибка авторизации');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const quickDemo = async (demoRole) => {
-    setError('');
-    setLoading(true);
-    try {
-      const user = await dbService.loginUser(demoRole === 'teacher' ? 'teacher' : 'student', '123');
-      onAuthSuccess(user);
-    } catch {
-      try {
-        const created = await dbService.registerUser(
-          demoRole === 'teacher'
-            ? {
-                role: 'teacher',
-                fullName: 'Чередникова О.Ю.',
-                department: 'Кафедра компьютерной инженерии',
-                login: 'teacher',
-                password: '123'
-              }
-            : {
-                role: 'student',
-                fullName: 'Косяк Даниил Дмитриевич',
-                group: 'КСЦ-23',
-                login: 'student',
-                password: '123'
-              }
-        );
-        onAuthSuccess(created);
-      } catch (e2) {
-        setError(e2.message);
-      }
     } finally {
       setLoading(false);
     }
@@ -393,29 +359,6 @@ export default function AuthScreen({ onAuthSuccess }) {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
-
-          <div className="mt-6 pt-4 border-t border-white/10">
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 mb-2.5">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Быстрый демо-вход:</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => quickDemo('teacher')}
-                className="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-200 active:scale-[0.98] transition"
-              >
-                Преподаватель
-              </button>
-              <button
-                type="button"
-                onClick={() => quickDemo('student')}
-                className="py-2.5 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-slate-200 active:scale-[0.98] transition"
-              >
-                Студент
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>
