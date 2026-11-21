@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build Pulse APK
 
 on:
   push:
@@ -23,53 +23,40 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Generate App Icon & Splash Screen
+      - name: Generate Pulse Icon & Splash Screen
         run: |
           python3 -m pip install pillow
           mkdir -p resources
           python3 - << 'EOF'
           from PIL import Image, ImageDraw
 
-          # 1. Иконка приложения 1024x1024
           size = 1024
-          img = Image.new("RGBA", (size, size), (15, 23, 42, 255))
+          img = Image.new("RGBA", (size, size), (3, 7, 18, 255))
           draw = ImageDraw.Draw(img)
 
-          # Градиентный фон (от синего #2563eb к индиго #4f46e5)
           for y in range(size):
-              r = int(37 + (79 - 37) * (y / size))
-              g = int(99 + (70 - 99) * (y / size))
-              b = int(235 + (229 - 235) * (y / size))
+              r = int(14 + (59 - 14) * (y / size))
+              g = int(165 + (130 - 165) * (y / size))
+              b = int(233 + (246 - 233) * (y / size))
               draw.line([(0, y), (size, y)], fill=(r, g, b, 255))
 
-          # Белая рамка-видоискатель QR-кода
-          pad = 220
-          stroke = 44
-          corner = 130
-          w = (255, 255, 255, 255)
-          # Уголки сканера
-          draw.rounded_rectangle([pad, pad, pad + corner, pad + stroke], radius=18, fill=w)
-          draw.rounded_rectangle([pad, pad, pad + stroke, pad + corner], radius=18, fill=w)
-          draw.rounded_rectangle([size - pad - corner, pad, size - pad, pad + stroke], radius=18, fill=w)
-          draw.rounded_rectangle([size - pad - stroke, pad, size - pad, pad + corner], radius=18, fill=w)
-          draw.rounded_rectangle([pad, size - pad - stroke, pad + corner, size - pad], radius=18, fill=w)
-          draw.rounded_rectangle([pad, size - pad - corner, pad + stroke, size - pad], radius=18, fill=w)
-          draw.rounded_rectangle([size - pad - corner, size - pad - stroke, size - pad, size - pad], radius=18, fill=w)
-          draw.rounded_rectangle([size - pad - stroke, size - pad - corner, size - pad, size - pad], radius=18, fill=w)
-
-          # Внутренние элементы QR + зелёная галочка отметки
-          draw.rounded_rectangle([320, 320, 460, 460], radius=24, fill=w)
-          draw.rounded_rectangle([564, 320, 704, 460], radius=24, fill=w)
-          draw.rounded_rectangle([320, 564, 460, 704], radius=24, fill=w)
-          draw.rounded_rectangle([550, 550, 715, 715], radius=36, fill=(16, 185, 129, 255))
+          pts = [
+              (180, 520),
+              (330, 520),
+              (410, 310),
+              (510, 720),
+              (610, 260),
+              (690, 520),
+              (844, 520)
+          ]
+          draw.line(pts, fill=(255, 255, 255, 255), width=64, joint="curve")
 
           img.save("resources/icon.png")
 
-          # 2. Splash Screen 2732x2732
-          splash = Image.new("RGBA", (2732, 2732), (15, 23, 42, 255))
+          splash = Image.new("RGBA", (2732, 2732), (3, 7, 18, 255))
           icon_resized = img.resize((520, 520), Image.Resampling.LANCZOS)
           mask = Image.new("L", (520, 520), 0)
-          ImageDraw.Draw(mask).rounded_rectangle([0, 0, 520, 520], radius=110, fill=255)
+          ImageDraw.Draw(mask).rounded_rectangle([0, 0, 520, 520], radius=120, fill=255)
           splash.paste(icon_resized, ((2732 - 520) // 2, (2732 - 520) // 2), mask)
           splash.save("resources/splash.png")
           EOF
@@ -80,7 +67,7 @@ jobs:
           npm install -D @capacitor/assets
           npm run build
 
-      - name: Add Android platform, icons & permissions
+      - name: Add Android platform, icons, dark bars & permissions
         run: |
           npx cap add android || true
           npx capacitor-assets generate --android
@@ -88,6 +75,10 @@ jobs:
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
             sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" \/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" \/>/' "$MANIFEST"
+          fi
+          STYLES="android/app/src/main/res/values/styles.xml"
+          if [ -f "$STYLES" ] && ! grep -q "navigationBarColor" "$STYLES"; then
+            sed -i 's/<\/style>/        <item name="android:navigationBarColor">#030712<\/item>\n        <item name="android:statusBarColor">#030712<\/item>\n        <item name="android:windowBackground">#030712<\/item>\n    <\/style>/' "$STYLES"
           fi
 
       - name: Build Debug APK
@@ -99,5 +90,5 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AttendancePro-APK
+          name: Pulse-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
