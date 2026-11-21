@@ -70,7 +70,7 @@ jobs:
       - name: Add Android platform, icons, dark bars & permissions
         run: |
           npx cap add android || true
-          npx capacitor-assets generate --android
+          npx capacitor-assets generate --android || true
           npx cap sync android
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
@@ -78,18 +78,28 @@ jobs:
           fi
           STYLES="android/app/src/main/res/values/styles.xml"
           if [ -f "$STYLES" ] && ! grep -q "navigationBarColor" "$STYLES"; then
-            sed -i 's/<\/style>/        <item name="android:navigationBarColor">#030712<\/item>\n        <item name="android:statusBarColor">#030712<\/item>\n        <item name="android:windowBackground">#030712<\/item>\n    <\/style>/' "$STYLES"
+            python3 - << 'EOF'
+          path = "android/app/src/main/res/values/styles.xml"
+          with open(path, "r", encoding="utf-8") as f:
+              txt = f.read()
+          insert = '        <item name="android:navigationBarColor">#030712</item>\n        <item name="android:statusBarColor">#030712</item>\n        <item name="android:windowBackground">#030712</item>\n    </style>'
+          txt = txt.replace("</style>", insert, 1)
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(txt)
+          EOF
           fi
 
       - name: Build Debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
-          cp app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Pulse.apk
+          ./gradlew assembleDebug --stacktrace
+          APK_FILE=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "Found APK: $APK_FILE"
+          cp "$APK_FILE" ../Pulse.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Pulse-APK
-          path: android/app/build/outputs/apk/debug/Pulse.apk
+          path: Pulse.apk
