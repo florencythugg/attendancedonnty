@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import {
-  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection,
   doc,
   setDoc,
@@ -18,9 +20,13 @@ import { generateRandomSecret, calculateDistanceMeters } from '../utils/crypto';
 let firestore = null;
 if (isFirebaseConfigured) {
   const app = initializeApp(firebaseConfig);
-  firestore = getFirestore(app);
+  firestore = initializeFirestore(app, {
+    experimentalForceLongPolling: true,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  });
 }
-
 const LS_KEYS = {
   users: 'ap_v2_users',
   lessons: 'ap_v2_lessons',
