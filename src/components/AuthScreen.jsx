@@ -5,71 +5,87 @@ import { TEACHER_INVITE_CODE } from '../firebaseConfig';
 
 function AnimatedPulseLogo() {
   return (
-    <div className="relative inline-flex items-center justify-center w-24 h-24 mb-4">
-      {/* Расходящиеся радарные кольца */}
-      <span className="animate-radar-ring absolute inset-2 rounded-3xl border border-cyan-400/50 pointer-events-none" />
-      <span className="animate-radar-ring-delayed absolute inset-2 rounded-3xl border border-blue-500/40 pointer-events-none" />
+    <div className="relative inline-flex items-center justify-center w-28 h-28 mb-3">
+      <style>{`
+        @keyframes logoWaveFlow {
+          0% { stroke-dashoffset: 100; }
+          50% { stroke-dashoffset: 0; }
+          100% { stroke-dashoffset: -100; }
+        }
+        @keyframes logoRadarWave {
+          0% { transform: scale(0.82); opacity: 0.75; }
+          100% { transform: scale(1.75); opacity: 0; }
+        }
+        @keyframes logoGlowBreath {
+          0%, 100% { opacity: 0.45; transform: scale(0.95); }
+          50% { opacity: 0.85; transform: scale(1.08); }
+        }
+      `}</style>
 
-      {/* Мягкое фоновое свечение */}
-      <div className="absolute inset-1 rounded-3xl bg-gradient-to-tr from-blue-600/40 via-cyan-400/30 to-indigo-600/40 blur-xl" />
+      {/* Два расходящихся радарных кольца */}
+      <span
+        style={{ animation: 'logoRadarWave 2.4s cubic-bezier(0.16, 1, 0.3, 1) infinite' }}
+        className="absolute inset-3 rounded-3xl border border-cyan-400/60 pointer-events-none"
+      />
+      <span
+        style={{ animation: 'logoRadarWave 2.4s cubic-bezier(0.16, 1, 0.3, 1) 1.2s infinite' }}
+        className="absolute inset-3 rounded-3xl border border-blue-500/50 pointer-events-none"
+      />
 
-      {/* Основной стеклянный корпус логотипа */}
-      <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 via-cyan-400 to-indigo-600 p-[1.5px] shadow-2xl shadow-cyan-500/25">
+      {/* Дышащее неоновое свечение */}
+      <div
+        style={{ animation: 'logoGlowBreath 3s ease-in-out infinite' }}
+        className="absolute inset-2 rounded-3xl bg-gradient-to-tr from-blue-600/50 via-cyan-400/40 to-indigo-600/50 blur-xl pointer-events-none"
+      />
+
+      {/* Корпус логотипа */}
+      <div className="relative w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 via-cyan-400 to-indigo-600 p-[1.5px] shadow-2xl shadow-cyan-500/30">
         <div className="w-full h-full rounded-[1.4rem] bg-[#060b19]/90 backdrop-blur-xl flex items-center justify-center overflow-hidden relative">
-          {/* Тонкая фоновая сетка внутри значка */}
           <div
-            className="absolute inset-0 opacity-20"
+            className="absolute inset-0 opacity-25"
             style={{
               backgroundImage:
-                'radial-gradient(circle at 1px 1px, rgba(56,189,248,0.6) 1px, transparent 0)',
+                'radial-gradient(circle at 1px 1px, rgba(56,189,248,0.65) 1px, transparent 0)',
               backgroundSize: '10px 10px'
             }}
           />
 
-          {/* Анимированный SVG-импульс */}
-          <svg
-            viewBox="0 0 80 50"
-            className="w-14 h-10 relative z-10 overflow-visible"
-            fill="none"
-          >
+          <svg viewBox="0 0 80 50" className="w-14 h-10 relative z-10 overflow-visible" fill="none">
             <defs>
-              <linearGradient id="pulseGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <linearGradient id="pulseGradLive" x1="0%" y1="0%" x2="100%" y2="0%">
                 <stop offset="0%" stopColor="#38bdf8" />
                 <stop offset="50%" stopColor="#22d3ee" />
                 <stop offset="100%" stopColor="#818cf8" />
               </linearGradient>
-              <filter id="pulseGlow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="2.5" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
             </defs>
 
-            {/* Полупрозрачный след линии */}
+            {/* Фоновый контур импульса */}
             <path
               d="M 4 26 L 20 26 L 27 11 L 36 41 L 45 7 L 53 26 L 76 26"
-              stroke="rgba(56, 189, 248, 0.22)"
+              stroke="rgba(56, 189, 248, 0.25)"
               strokeWidth="3.5"
               strokeLinecap="round"
               strokeLinejoin="round"
             />
 
-            {/* Бегущий неоновый луч импульса */}
+            {/* Непрерывно бегущий луч импульса */}
             <path
+              pathLength="100"
               d="M 4 26 L 20 26 L 27 11 L 36 41 L 45 7 L 53 26 L 76 26"
-              stroke="url(#pulseGrad)"
-              strokeWidth="3.8"
+              stroke="url(#pulseGradLive)"
+              strokeWidth="4"
               strokeLinecap="round"
               strokeLinejoin="round"
-              filter="url(#pulseGlow)"
-              className="animate-pulse-line"
+              style={{
+                strokeDasharray: 100,
+                animation: 'logoWaveFlow 2.2s ease-in-out infinite',
+                filter: 'drop-shadow(0 0 6px rgba(34, 211, 238, 0.85))'
+              }}
             />
           </svg>
         </div>
 
-        {/* Живой индикатор статуса */}
+        {/* Пульсирующий индикатор статуса */}
         <span className="absolute -top-1 -right-1 flex h-4 w-4">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-[#030712]" />
