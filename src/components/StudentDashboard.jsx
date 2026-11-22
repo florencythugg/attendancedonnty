@@ -25,6 +25,7 @@ import {
   getCurrentPositionAsync,
   triggerFeedback
 } from '../utils/crypto';
+import { StudentViewer } from './LiveStreamRoom';
 
 function HolographicStudentCard({ user, deviceId, attendancePct }) {
   const [tilt, setTilt] = useState({ x: 0, y: 0, glareX: 50, glareY: 50 });
@@ -39,7 +40,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
     return `${padded.slice(0, 4)} ${padded.slice(4, 8)}`;
   }, [user.id]);
 
-  // Генерация персонального QR-кода студенческого ID
   useEffect(() => {
     const payload = JSON.stringify({
       type: 'PULSE_STUDENT_ID',
@@ -55,7 +55,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
     }).then(setStudentQrUrl);
   }, [user, deviceId]);
 
-  // Реакция на наклон телефона (гироскоп)
   useEffect(() => {
     const handleOrientation = (e) => {
       if (e.gamma === null || e.beta === null) return;
@@ -74,7 +73,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
     return () => window.removeEventListener('deviceorientation', handleOrientation);
   }, []);
 
-  // Реакция на мышь/палец на экране
   const handlePointerMove = (e) => {
     if (!cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
@@ -123,12 +121,10 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
         }}
         className="relative w-full aspect-[1.58/1] rounded-[1.75rem] cursor-pointer select-none shadow-[0_25px_55px_-12px_rgba(34,211,238,0.28)]"
       >
-        {/* ЛИЦЕВАЯ СТОРОНА БИЛЕТА */}
         <div
           style={{ backfaceVisibility: 'hidden' }}
           className="absolute inset-0 rounded-[1.75rem] overflow-hidden border border-white/20 bg-gradient-to-br from-[#0c1938] via-[#091229] to-[#131c42] p-5 flex flex-col justify-between"
         >
-          {/* Декоративные сетка и орбы внутри карты */}
           <div
             className="absolute inset-0 opacity-20 pointer-events-none"
             style={{
@@ -140,7 +136,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
           <div className="absolute -right-12 -top-12 w-44 h-44 rounded-full bg-cyan-400/25 blur-2xl pointer-events-none" />
           <div className="absolute -left-10 -bottom-12 w-44 h-44 rounded-full bg-indigo-500/30 blur-2xl pointer-events-none" />
 
-          {/* Радужный голографический перелив, двигающийся при наклоне */}
           <div
             className="absolute inset-0 pointer-events-none mix-blend-overlay transition-opacity duration-200"
             style={{
@@ -154,7 +149,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
             }}
           />
 
-          {/* Верхняя шапка билета */}
           <div className="relative z-10 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-500 to-cyan-400 flex items-center justify-center shadow-md">
@@ -176,7 +170,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
             </span>
           </div>
 
-          {/* Центральная часть: ФИО и группа */}
           <div className="relative z-10 my-auto pt-2">
             <div className="text-[10px] text-slate-400 uppercase tracking-widest">
               Владелец карты
@@ -190,7 +183,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
             </div>
           </div>
 
-          {/* Нижняя полоса билета */}
           <div className="relative z-10 flex items-end justify-between pt-2 border-t border-white/10">
             <div>
               <div className="text-[9px] text-slate-400 uppercase tracking-wider">Номер ID</div>
@@ -209,7 +201,6 @@ function HolographicStudentCard({ user, deviceId, attendancePct }) {
           </div>
         </div>
 
-        {/* ОБОРОТНАЯ СТОРОНА БИЛЕТА (QR-ПРОПУСК) */}
         <div
           style={{
             backfaceVisibility: 'hidden',
@@ -279,6 +270,16 @@ export default function StudentDashboard({ user, data, onLogout }) {
   const activeGroupLessons = useMemo(
     () => data.lessons.filter((l) => l.isActive),
     [data.lessons]
+  );
+
+  const onlineActiveLessons = useMemo(
+    () => activeGroupLessons.filter((l) => l.mode === 'online' && l.group === user.group),
+    [activeGroupLessons, user.group]
+  );
+
+  const offlineActiveLessons = useMemo(
+    () => activeGroupLessons.filter((l) => l.mode !== 'online'),
+    [activeGroupLessons]
   );
 
   const myRecords = useMemo(
@@ -424,7 +425,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
     setFeedback(null);
     try {
       let matchedLesson = null;
-      for (const les of activeGroupLessons) {
+      for (const les of offlineActiveLessons) {
         const ok = await verifyDynamicToken(les.id, les.secret, code);
         if (ok) {
           matchedLesson = les;
@@ -501,6 +502,24 @@ export default function StudentDashboard({ user, data, onLogout }) {
         <main key={tab} className="p-4 space-y-5 animate-tab-enter">
           {tab === 'scan' && (
             <div className="space-y-4">
+              {/* Активные дистанционные пары (прямой эфир) */}
+              {onlineActiveLessons.map((l) => (
+                <StudentViewer
+                  key={l.id}
+                  lesson={l}
+                  student={user}
+                  deviceId={deviceId}
+                  onMarked={() => {
+                    triggerFeedback('success');
+                    setFeedback({
+                      type: 'success',
+                      title: 'Вы подключились к онлайн-паре!',
+                      detail: `${l.subject} • Посещение автоматически засчитано`
+                    });
+                  }}
+                />
+              ))}
+
               <div className="grid grid-cols-2 gap-1.5 p-1 glass-card rounded-2xl">
                 <button
                   onClick={() => setScanMode('camera')}
@@ -591,7 +610,7 @@ export default function StudentDashboard({ user, data, onLogout }) {
                   <div>
                     <h2 className="text-base font-bold text-white">Резервный код пары</h2>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      Введите 6-значный код под QR-кодом преподавателя (действует 20 сек)
+                      Введите 6-значный код с экрана преподавателя (действует 20 сек)
                     </p>
                   </div>
                   <input
@@ -613,12 +632,12 @@ export default function StudentDashboard({ user, data, onLogout }) {
                 </form>
               )}
 
-              {activeGroupLessons.length > 0 && (
+              {offlineActiveLessons.length > 0 && (
                 <div className="p-4 rounded-2xl bg-blue-500/10 border border-blue-500/25 backdrop-blur-md">
                   <div className="text-xs font-bold text-cyan-300 mb-1.5 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> Сейчас идёт перекличка:
+                    <Sparkles className="w-3.5 h-3.5" /> Сейчас идёт очная перекличка:
                   </div>
-                  {activeGroupLessons.map((l) => (
+                  {offlineActiveLessons.map((l) => (
                     <div key={l.id} className="text-xs text-slate-200">
                       • {l.subject} ({l.group}, {l.room}) {l.geo ? '• GPS-контроль' : ''}
                     </div>
@@ -744,7 +763,6 @@ export default function StudentDashboard({ user, data, onLogout }) {
 
           {tab === 'profile' && (
             <div className="space-y-4">
-              {/* Голографический цифровой студенческий билет */}
               <HolographicStudentCard
                 user={user}
                 deviceId={deviceId}
