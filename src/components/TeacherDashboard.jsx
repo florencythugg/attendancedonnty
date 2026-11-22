@@ -21,7 +21,8 @@ import {
   X,
   MapPin,
   Sparkles,
-  BookmarkCheck
+  BookmarkCheck,
+  Radio
 } from 'lucide-react';
 import { dbService } from '../services/db';
 import {
@@ -32,9 +33,11 @@ import {
   getCurrentPositionAsync
 } from '../utils/crypto';
 import { exportLessonToExcel, exportSemesterSummaryToExcel } from '../utils/exportExcel';
+import { TeacherBroadcaster } from './LiveStreamRoom';
 
 export default function TeacherDashboard({ user, data, onLogout }) {
   const [tab, setTab] = useState('active');
+  const [lessonMode, setLessonMode] = useState('offline');
   const [subject, setSubject] = useState('');
   const [group, setGroup] = useState('');
   const [room, setRoom] = useState('');
@@ -72,7 +75,6 @@ export default function TeacherDashboard({ user, data, onLogout }) {
     [data.lessons, user.id]
   );
 
-  // Умные авто-шаблоны пар преподавателя (ввёл один раз — сохранилось навсегда)
   const savedPresets = useMemo(() => {
     const map = new Map();
     myLessons.forEach((l) => {
@@ -108,7 +110,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
   );
 
   useEffect(() => {
-    if (!activeLesson) return;
+    if (!activeLesson || activeLesson.mode === 'online') return;
     let lastStep = -1;
     let cancelled = false;
 
@@ -154,7 +156,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
     setGeoError('');
     try {
       let geo = null;
-      if (useGeoFence) {
+      if (lessonMode === 'offline' && useGeoFence) {
         const pos = await getCurrentPositionAsync();
         geo = { lat: pos.lat, lng: pos.lng, radiusMeters: geoRadius };
       }
@@ -164,7 +166,8 @@ export default function TeacherDashboard({ user, data, onLogout }) {
         group,
         room,
         lateMinutes,
-        geo
+        geo,
+        mode: lessonMode
       });
     } catch (err) {
       setGeoError(err.message);
@@ -336,6 +339,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                       {typeof rec?.distanceMeters === 'number' && (
                         <span className="text-emerald-400 font-medium">• {rec.distanceMeters} м</span>
                       )}
+                      {rec?.method === 'ONLINE' && <span className="text-cyan-400 font-medium">• Онлайн-эфир</span>}
                       {rec?.method === 'MANUAL' && <span className="text-blue-400">• Вручную</span>}
                     </div>
                   </div>
@@ -370,7 +374,7 @@ export default function TeacherDashboard({ user, data, onLogout }) {
     );
   };
 
-  if (fullscreenQr && activeLesson) {
+  if (fullscreenQr && activeLesson && activeLesson.mode !== 'online') {
     return (
       <div className="fixed inset-0 z-50 bg-[#030712] flex flex-col items-center justify-center p-6 text-center">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -446,12 +450,11 @@ export default function TeacherDashboard({ user, data, onLogout }) {
             <>
               {!activeLesson ? (
                 <div className="space-y-4">
-                  {/* Сохраненные шаблоны пар в один тап */}
                   {savedPresets.length > 0 && (
                     <div className="glass-card rounded-3xl p-4">
                       <div className="flex items-center gap-1.5 text-[11px] font-bold text-cyan-400 uppercase tracking-wider mb-2.5">
                         <BookmarkCheck className="w-3.5 h-3.5" />
-                        <span>Мои сохранённые пары (нажмите для подстановки)</span>
+                        <span>Мои сохранённые пары</span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {savedPresets.map((p) => (
@@ -478,11 +481,39 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                       </div>
                       <div>
                         <h2 className="text-base font-bold text-white">Начать новую пару</h2>
-                        <p className="text-xs text-slate-400">Предмет и группа сохранятся автоматически</p>
+                        <p className="text-xs text-slate-400">Выберите очный QR-режим или дистанционный эфир</p>
                       </div>
                     </div>
 
                     <form onSubmit={handleStartLesson} className="space-y-3.5">
+                      {/* Выбор формата: Очно или Дистанционно */}
+                      <div className="grid grid-cols-2 gap-2 p-1 bg-slate-950/80 rounded-2xl border border-white/10">
+                        <button
+                          type="button"
+                          onClick={() => setLessonMode('offline')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                            lessonMode === 'offline'
+                              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <QrCode className="w-4 h-4" />
+                          <span>Очно (QR + GPS)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setLessonMode('online')}
+                          className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                            lessonMode === 'online'
+                              ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          <Radio className="w-4 h-4" />
+                          <span>Дистанционно</span>
+                        </button>
+                      </div>
+
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
                           Дисциплина
@@ -525,13 +556,13 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                         </div>
                         <div>
                           <label className="block text-[11px] font-semibold text-slate-400 mb-1 uppercase tracking-wider">
-                            Аудитория
+                            {lessonMode === 'online' ? 'Формат' : 'Аудитория'}
                           </label>
                           <input
                             type="text"
                             value={room}
                             onChange={(e) => setRoom(e.target.value)}
-                            placeholder="Напр. Ауд. 8.204"
+                            placeholder={lessonMode === 'online' ? 'Онлайн-лекция' : 'Напр. Ауд. 8.204'}
                             className="w-full px-4 py-3 rounded-2xl bg-slate-950/70 border border-white/10 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition"
                           />
                         </div>
@@ -572,35 +603,37 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                         </select>
                       </div>
 
-                      <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 space-y-2.5">
-                        <label className="flex items-center justify-between cursor-pointer">
-                          <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
-                            <MapPin className="w-4 h-4 text-cyan-400" />
-                            <span>Контроль геозоны аудитории (GPS)</span>
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={useGeoFence}
-                            onChange={(e) => setUseGeoFence(e.target.checked)}
-                            className="w-4 h-4 accent-blue-600"
-                          />
-                        </label>
-                        {useGeoFence && (
-                          <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
-                            <span className="text-[11px] text-slate-400">Допустимый радиус:</span>
-                            <select
-                              value={geoRadius}
-                              onChange={(e) => setGeoRadius(Number(e.target.value))}
-                              className="px-2.5 py-1 rounded-xl bg-slate-900 border border-white/10 text-xs text-white"
-                            >
-                              <option value={50}>50 метров (строго)</option>
-                              <option value={100}>100 метров (корпус)</option>
-                              <option value={250}>250 метров (кампус)</option>
-                            </select>
-                          </div>
-                        )}
-                        {geoError && <div className="text-[11px] text-rose-400">{geoError}</div>}
-                      </div>
+                      {lessonMode === 'offline' && (
+                        <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 space-y-2.5">
+                          <label className="flex items-center justify-between cursor-pointer">
+                            <span className="flex items-center gap-2 text-xs font-semibold text-slate-200">
+                              <MapPin className="w-4 h-4 text-cyan-400" />
+                              <span>Контроль геозоны аудитории (GPS)</span>
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={useGeoFence}
+                              onChange={(e) => setUseGeoFence(e.target.checked)}
+                              className="w-4 h-4 accent-blue-600"
+                            />
+                          </label>
+                          {useGeoFence && (
+                            <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+                              <span className="text-[11px] text-slate-400">Допустимый радиус:</span>
+                              <select
+                                value={geoRadius}
+                                onChange={(e) => setGeoRadius(Number(e.target.value))}
+                                className="px-2.5 py-1 rounded-xl bg-slate-900 border border-white/10 text-xs text-white"
+                              >
+                                <option value={50}>50 метров (строго)</option>
+                                <option value={100}>100 метров (корпус)</option>
+                                <option value={250}>250 метров (кампус)</option>
+                              </select>
+                            </div>
+                          )}
+                          {geoError && <div className="text-[11px] text-rose-400">{geoError}</div>}
+                        </div>
+                      )}
 
                       <button
                         type="submit"
@@ -608,70 +641,83 @@ export default function TeacherDashboard({ user, data, onLogout }) {
                         className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:brightness-110 active:scale-[0.98] transition-all text-sm font-bold text-white flex items-center justify-center gap-2 shadow-xl shadow-blue-600/25"
                       >
                         <Play className="w-4 h-4 fill-current" />
-                        <span>{creating ? 'Определение GPS...' : 'Запустить пару и открыть QR'}</span>
+                        <span>
+                          {creating
+                            ? 'Запуск...'
+                            : lessonMode === 'online'
+                            ? 'Запустить дистанционную пару'
+                            : 'Запустить пару и открыть QR'}
+                        </span>
                       </button>
                     </form>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div className="glass-card rounded-3xl p-5">
-                    <div className="flex items-start justify-between mb-3">
+                  <div className="glass-card rounded-3xl p-5 space-y-4">
+                    <div className="flex items-start justify-between">
                       <div>
                         <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/25">
                           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                          LIVE • {activeLesson.group}
-                          {activeLesson.geo && ` • GPS ≤ ${activeLesson.geo.radiusMeters}м`}
+                          {activeLesson.mode === 'online'
+                            ? `ДИСТАНТ • ${activeLesson.group}`
+                            : `LIVE • ${activeLesson.group}${activeLesson.geo ? ` • GPS ≤ ${activeLesson.geo.radiusMeters}м` : ''}`}
                         </span>
                         <h2 className="text-lg font-extrabold text-white mt-2">{activeLesson.subject}</h2>
                         <div className="text-xs text-slate-400">{activeLesson.room}</div>
                       </div>
-                      <button
-                        onClick={() => setFullscreenQr(true)}
-                        className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition"
-                        title="На весь экран (для проектора)"
-                      >
-                        <Maximize2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col items-center my-4">
-                      <div className="relative p-1 rounded-3xl bg-gradient-to-tr from-blue-500 via-cyan-400 to-indigo-500 shadow-[0_0_40px_rgba(37,99,235,0.3)]">
-                        <div
-                          className={`bg-white p-3.5 rounded-[1.35rem] transition-transform duration-300 ${
-                            qrPulse ? 'scale-[1.03]' : 'scale-100'
-                          }`}
+                      {activeLesson.mode !== 'online' && (
+                        <button
+                          onClick={() => setFullscreenQr(true)}
+                          className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-slate-300 hover:text-white active:scale-95 transition"
+                          title="На весь экран (для проектора)"
                         >
-                          {qrDataUrl && <img src={qrDataUrl} alt="QR Code" className="w-52 h-52" />}
-                        </div>
-                      </div>
-
-                      <div className="w-full max-w-[235px] mt-4">
-                        <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
-                          <span className="flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-cyan-400" /> HMAC-SHA256
-                          </span>
-                          <span className="font-mono text-cyan-400 font-bold">{secondsLeft} сек</span>
-                        </div>
-                        <div className="h-2 bg-slate-900 rounded-full overflow-hidden p-[1px] border border-white/5">
-                          <div
-                            className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
-                            style={{ width: `${(secondsLeft / ROTATION_SECONDS) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="mt-3.5 px-5 py-2 rounded-2xl bg-slate-950/80 border border-white/10 text-center">
-                        <span className="text-[11px] text-slate-400 mr-2">Резервный PIN:</span>
-                        <span className="font-mono text-lg font-extrabold tracking-widest text-white">
-                          {currentPin}
-                        </span>
-                      </div>
+                          <Maximize2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
+
+                    {activeLesson.mode === 'online' ? (
+                      <TeacherBroadcaster lesson={activeLesson} />
+                    ) : (
+                      <div className="flex flex-col items-center my-2">
+                        <div className="relative p-1 rounded-3xl bg-gradient-to-tr from-blue-500 via-cyan-400 to-indigo-500 shadow-[0_0_40px_rgba(37,99,235,0.3)]">
+                          <div
+                            className={`bg-white p-3.5 rounded-[1.35rem] transition-transform duration-300 ${
+                              qrPulse ? 'scale-[1.03]' : 'scale-100'
+                            }`}
+                          >
+                            {qrDataUrl && <img src={qrDataUrl} alt="QR Code" className="w-52 h-52" />}
+                          </div>
+                        </div>
+
+                        <div className="w-full max-w-[235px] mt-4">
+                          <div className="flex justify-between text-[11px] text-slate-400 mb-1.5">
+                            <span className="flex items-center gap-1">
+                              <Sparkles className="w-3 h-3 text-cyan-400" /> HMAC-SHA256
+                            </span>
+                            <span className="font-mono text-cyan-400 font-bold">{secondsLeft} сек</span>
+                          </div>
+                          <div className="h-2 bg-slate-900 rounded-full overflow-hidden p-[1px] border border-white/5">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 transition-all duration-500"
+                              style={{ width: `${(secondsLeft / ROTATION_SECONDS) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-3.5 px-5 py-2 rounded-2xl bg-slate-950/80 border border-white/10 text-center">
+                          <span className="text-[11px] text-slate-400 mr-2">Резервный PIN:</span>
+                          <span className="font-mono text-base font-extrabold tracking-widest text-white">
+                            {currentPin}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
                     <button
                       onClick={handleFinishLesson}
-                      className="w-full mt-2 py-3 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition"
+                      className="w-full py-3 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-xs font-bold flex items-center justify-center gap-2 active:scale-[0.98] transition"
                     >
                       <Square className="w-3.5 h-3.5 fill-current" />
                       <span>Завершить пару и подвести итоги</span>
