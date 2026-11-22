@@ -63,64 +63,31 @@ jobs:
 
       - name: Install dependencies & build web app
         run: |
-          npm install --legacy-peer-deps
-          npm install -D @capacitor/assets --legacy-peer-deps
+          npm install
+          npm install -D @capacitor/assets
           npm run build
 
       - name: Add Android platform, icons, dark bars & permissions
         run: |
-          if [ ! -f "capacitor.config.json" ] && [ ! -f "capacitor.config.ts" ]; then
-            cat << 'EOF' > capacitor.config.json
-          {
-            "appId": "com.pulse.attendance",
-            "appName": "Pulse",
-            "webDir": "dist",
-            "backgroundColor": "#030712",
-            "server": {
-              "androidScheme": "https"
-            }
-          }
-          EOF
-          fi
-
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
-
+          npx cap add android || true
           npx capacitor-assets generate --android || true
           npx cap sync android
-
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ ! -f "$MANIFEST" ]; then
-            echo "ERROR: $MANIFEST not found after npx cap sync android"
-            ls -la android/app/src/main || true
-            exit 1
-          fi
-
           if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
             sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" \/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" \/>/' "$MANIFEST"
           fi
-
-          mkdir -p android/app/src/main/res/values
-          cat << 'EOF' > android/app/src/main/res/values/styles.xml
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-                  <item name="colorPrimary">#030712</item>
-                  <item name="colorPrimaryDark">#030712</item>
-                  <item name="colorAccent">#22d3ee</item>
-                  <item name="android:windowBackground">#030712</item>
-                  <item name="android:statusBarColor">#030712</item>
-                  <item name="android:navigationBarColor">#030712</item>
-                  <item name="android:windowLightStatusBar">false</item>
-                  <item name="android:windowLightNavigationBar">false</item>
-                  <item name="android:enforceNavigationBarContrast">false</item>
-              </style>
-              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme">
-                  <item name="android:background">#030712</item>
-              </style>
-          </resources>
+          STYLES="android/app/src/main/res/values/styles.xml"
+          if [ -f "$STYLES" ] && ! grep -q "navigationBarColor" "$STYLES"; then
+            python3 - << 'EOF'
+          path = "android/app/src/main/res/values/styles.xml"
+          with open(path, "r", encoding="utf-8") as f:
+              txt = f.read()
+          insert = '        <item name="android:navigationBarColor">#030712</item>\n        <item name="android:statusBarColor">#030712</item>\n        <item name="android:windowBackground">#030712</item>\n    </style>'
+          txt = txt.replace("</style>", insert, 1)
+          with open(path, "w", encoding="utf-8") as f:
+              f.write(txt)
           EOF
+          fi
 
       - name: Build Debug APK
         run: |
