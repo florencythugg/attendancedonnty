@@ -1,9 +1,16 @@
 {
+  "appId": "ru.donntu.pulse",
   "appId": "com.pulse.attendance",
   "appName": "Pulse",
   "webDir": "dist",
   "backgroundColor": "#030712",
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1000,
+      "backgroundColor": "#030712"
+    }
   }
 }
