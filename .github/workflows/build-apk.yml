@@ -63,8 +63,8 @@ jobs:
 
       - name: Install dependencies & build web app
         run: |
-          npm install
-          npm install -D @capacitor/assets @capacitor/core @capacitor/android
+          npm install --legacy-peer-deps
+          npm install -D @capacitor/assets --legacy-peer-deps
           npm run build
 
       - name: Add Android platform, icons, dark bars & permissions
