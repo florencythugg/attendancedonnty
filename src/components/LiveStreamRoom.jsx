@@ -35,7 +35,7 @@ function formatMediaError(err) {
     return 'Камера или микрофон уже заняты другим приложением.';
   }
   if (name === 'NotSupportedError') {
-    return 'Этот режим не поддерживается на телефоне. Используйте камеру.';
+    return 'Этот режим не поддерживается на телефоне. Используйте камеру или микрофон.';
   }
   return `Ошибка доступа к медиа: ${err?.message || 'неизвестная ошибка'}`;
 }
@@ -54,16 +54,19 @@ function RemoteAudioPlayer({ stream, muted }) {
 }
 
 export function TeacherBroadcaster({ lesson }) {
-  const [stream, setStream] = useState(null);
-  const [sourceType, setSourceType] = useState(null); // 'screen' | 'camera'
+  const [isLive, setIsLive] = useState(false);
+  const [sourceType, setSourceType] = useState(null); // 'screen' | 'media'
+  const [camOn, setCamOn] = useState(false);
+  const [micOn, setMicOn] = useState(false);
   const [facingMode, setFacingMode] = useState('user'); // 'user' | 'environment'
-  const [micMuted, setMicMuted] = useState(false);
   const [muteStudents, setMuteStudents] = useState(false);
   const [error, setError] = useState('');
   const [connectedCount, setConnectedCount] = useState(0);
   const [studentAudios, setStudentAudios] = useState([]);
 
   const videoRef = useRef(null);
+  const videoStreamRef = useRef(null);
+  const audioStreamRef = useRef(null);
   const peersRef = useRef(new Map());
 
   const isMobileDevice =
@@ -73,11 +76,40 @@ export function TeacherBroadcaster({ lesson }) {
     Boolean(navigator.mediaDevices?.getDisplayMedia) &&
     !isMobileDevice;
 
-  const stopStream = () => {
-    if (stream) {
-      stream.getTracks().forEach((t) => t.stop());
-      setStream(null);
+  const syncTracksToPeers = async () => {
+    const vTrack = videoStreamRef.current?.getVideoTracks()?.[0] || null;
+    const aTrack = audioStreamRef.current?.getAudioTracks()?.[0] || null;
+
+    for (const entry of peersRef.current.values()) {
+      try {
+        if (entry.videoSender) {
+          await entry.videoSender.replaceTrack(vTrack);
+        }
+        if (entry.audioSender) {
+          await entry.audioSender.replaceTrack(aTrack);
+        }
+      } catch {}
     }
+  };
+
+  const stopAllMedia = () => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      videoStreamRef.current = null;
+    }
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCamOn(false);
+    setMicOn(false);
+  };
+
+  const stopStream = () => {
+    stopAllMedia();
     peersRef.current.forEach((entry) => {
       try {
         entry.unsubIce && entry.unsubIce();
@@ -85,6 +117,7 @@ export function TeacherBroadcaster({ lesson }) {
       } catch {}
     });
     peersRef.current.clear();
+    setIsLive(false);
     setSourceType(null);
     setConnectedCount(0);
     setStudentAudios([]);
@@ -95,46 +128,116 @@ export function TeacherBroadcaster({ lesson }) {
   }, []);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream;
+    if (videoRef.current && videoStreamRef.current && camOn) {
+      videoRef.current.srcObject = videoStreamRef.current;
       videoRef.current.play().catch(() => {});
     }
-  }, [stream]);
+  }, [camOn, isLive]);
 
-  const getCameraAndMicStream = async (targetFacing) => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('Браузер или WebView не поддерживает доступ к камере.');
-    }
+  const enableCamera = async (targetFacing = facingMode) => {
+    setError('');
     try {
-      return await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: targetFacing,
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      });
-    } catch (e) {
-      if (e?.name === 'OverconstrainedError' || e?.name === 'NotFoundError') {
-        return await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true
-        });
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Браузер или WebView не поддерживает доступ к камере.');
       }
-      throw e;
+      let newStream;
+      try {
+        newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: targetFacing,
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          },
+          audio: false
+        });
+      } catch (e) {
+        if (e?.name === 'OverconstrainedError' || e?.name === 'NotFoundError') {
+          newStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        } else {
+          throw e;
+        }
+      }
+
+      if (videoStreamRef.current) {
+        videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      videoStreamRef.current = newStream;
+
+      const vTrack = newStream.getVideoTracks()[0];
+      if (vTrack) {
+        vTrack.onended = () => {
+          disableCamera();
+        };
+      }
+
+      setCamOn(true);
+      await syncTracksToPeers();
+      return true;
+    } catch (err) {
+      setError(formatMediaError(err));
+      return false;
     }
   };
 
-  const startBroadcast = async (type, customFacing = facingMode) => {
+  const disableCamera = async () => {
+    if (videoStreamRef.current) {
+      videoStreamRef.current.getTracks().forEach((t) => t.stop());
+      videoStreamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCamOn(false);
+    await syncTracksToPeers();
+  };
+
+  const enableMicrophone = async () => {
     setError('');
     try {
-      stopStream();
-      let mediaStream;
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Браузер или WebView не поддерживает доступ к микрофону.');
+      }
+      let newAudio;
+      try {
+        newAudio = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true
+          },
+          video: false
+        });
+      } catch {
+        newAudio = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      }
 
-      if (type === 'screen') {
+      if (audioStreamRef.current) {
+        audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+      audioStreamRef.current = newAudio;
+      setMicOn(true);
+      await syncTracksToPeers();
+      return true;
+    } catch (err) {
+      setError(formatMediaError(err));
+      return false;
+    }
+  };
+
+  const disableMicrophone = async () => {
+    if (audioStreamRef.current) {
+      audioStreamRef.current.getTracks().forEach((t) => t.stop());
+      audioStreamRef.current = null;
+    }
+    setMicOn(false);
+    await syncTracksToPeers();
+  };
+
+  const startBroadcast = async (mode) => {
+    setError('');
+    stopStream();
+
+    if (mode === 'screen') {
+      try {
         if (!navigator.mediaDevices?.getDisplayMedia) {
           throw { name: 'NotSupportedError' };
         }
@@ -142,40 +245,62 @@ export function TeacherBroadcaster({ lesson }) {
           video: { frameRate: 24 },
           audio: true
         });
-        try {
-          const micStream = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true }
-          });
-          micStream.getAudioTracks().forEach((track) => displayStream.addTrack(track));
-        } catch {}
-        mediaStream = displayStream;
-      } else {
-        mediaStream = await getCameraAndMicStream(customFacing);
+        videoStreamRef.current = displayStream;
+        const vTrack = displayStream.getVideoTracks()[0];
+        if (vTrack) {
+          vTrack.onended = () => stopStream();
+        }
+        setCamOn(true);
+        setSourceType('screen');
+        setIsLive(true);
+        // Пробуем дополнительно подключить микрофон преподавателя
+        await enableMicrophone();
+        setError('');
+      } catch (err) {
+        stopStream();
+        setError(formatMediaError(err));
       }
+      return;
+    }
 
-      const videoTrack = mediaStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.onended = () => stopStream();
+    if (mode === 'mic_only') {
+      const ok = await enableMicrophone();
+      if (ok) {
+        setSourceType('media');
+        setIsLive(true);
       }
+      return;
+    }
 
-      setStream(mediaStream);
-      setSourceType(type);
-      setMicMuted(false);
-    } catch (err) {
-      setError(formatMediaError(err));
+    if (mode === 'cam_only') {
+      const ok = await enableCamera(facingMode);
+      if (ok) {
+        setSourceType('media');
+        setIsLive(true);
+      }
+      return;
+    }
+
+    if (mode === 'cam_and_mic') {
+      const camOk = await enableCamera(facingMode);
+      const micOk = await enableMicrophone();
+      if (camOk || micOk) {
+        setSourceType('media');
+        setIsLive(true);
+      }
     }
   };
 
   const switchCamera = async () => {
     const nextFacing = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(nextFacing);
-    if (sourceType === 'camera') {
-      await startBroadcast('camera', nextFacing);
+    if (sourceType === 'media' && camOn) {
+      await enableCamera(nextFacing);
     }
   };
 
   useEffect(() => {
-    if (!stream || !lesson?.id) return;
+    if (!isLive || !lesson?.id) return;
 
     const unsub = dbService.subscribeStreamViewers(lesson.id, async (viewers) => {
       const now = Date.now();
@@ -189,6 +314,8 @@ export function TeacherBroadcaster({ lesson }) {
         const pc = new RTCPeerConnection(ICE_SERVERS);
         const state = {
           pc,
+          audioSender: null,
+          videoSender: null,
           remoteSet: false,
           pendingIce: [],
           unsubIce: null
@@ -196,9 +323,6 @@ export function TeacherBroadcaster({ lesson }) {
         peersRef.current.set(viewer.id, state);
         setConnectedCount(peersRef.current.size);
 
-        stream.getTracks().forEach((track) => pc.addTrack(track, stream));
-
-        // Принимаем аудиопоток (голос) от студента
         pc.ontrack = (event) => {
           if (event.track.kind === 'audio') {
             const remoteStream = event.streams?.[0] || new MediaStream([event.track]);
@@ -248,6 +372,25 @@ export function TeacherBroadcaster({ lesson }) {
           }
           state.pendingIce = [];
 
+          // Находим трансиверы аудио и видео, чтобы включать/выключать их раздельно на лету
+          const transceivers = pc.getTransceivers();
+          const aTrans = transceivers.find((t) => t.receiver?.track?.kind === 'audio');
+          const vTrans = transceivers.find((t) => t.receiver?.track?.kind === 'video');
+
+          const currentVTrack = videoStreamRef.current?.getVideoTracks()?.[0] || null;
+          const currentATrack = audioStreamRef.current?.getAudioTracks()?.[0] || null;
+
+          if (aTrans) {
+            aTrans.direction = 'sendrecv';
+            state.audioSender = aTrans.sender;
+            await aTrans.sender.replaceTrack(currentATrack);
+          }
+          if (vTrans) {
+            vTrans.direction = 'sendonly';
+            state.videoSender = vTrans.sender;
+            await vTrans.sender.replaceTrack(currentVTrack);
+          }
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
 
@@ -264,15 +407,7 @@ export function TeacherBroadcaster({ lesson }) {
     });
 
     return () => unsub();
-  }, [stream, lesson?.id]);
-
-  const toggleMic = () => {
-    if (!stream) return;
-    stream.getAudioTracks().forEach((t) => {
-      t.enabled = !t.enabled;
-    });
-    setMicMuted((prev) => !prev);
-  };
+  }, [isLive, lesson?.id]);
 
   return (
     <div className="space-y-3">
@@ -280,13 +415,42 @@ export function TeacherBroadcaster({ lesson }) {
         <RemoteAudioPlayer key={item.id} stream={item.stream} muted={muteStudents} />
       ))}
 
-      {!stream ? (
+      {!isLive ? (
         <div className="p-4 rounded-2xl bg-slate-950/70 border border-white/10 space-y-3">
           <div className="text-xs text-slate-300 font-semibold">
-            Выберите источник трансляции для студентов (P2P без VPN):
+            Выберите, что включить для трансляции (можно менять во время пары):
           </div>
 
-          <div className={`grid ${canShareScreen ? 'grid-cols-2' : 'grid-cols-1'} gap-2.5`}>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={() => startBroadcast('mic_only')}
+              className="py-3 px-3 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-xs font-bold text-emerald-200 flex flex-col items-center gap-1.5"
+            >
+              <Mic className="w-5 h-5 text-emerald-400" />
+              <span>Только микрофон</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => startBroadcast('cam_only')}
+              className="py-3 px-3 rounded-2xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-xs font-bold text-cyan-200 flex flex-col items-center gap-1.5"
+            >
+              <Video className="w-5 h-5 text-cyan-400" />
+              <span>Только камера</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => startBroadcast('cam_and_mic')}
+              className={`${
+                canShareScreen ? '' : 'col-span-2'
+              } py-3 px-3 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:brightness-110 text-xs font-bold text-white flex flex-col items-center gap-1.5 shadow-lg shadow-cyan-600/20`}
+            >
+              <Radio className="w-5 h-5" />
+              <span>Камера + микрофон</span>
+            </button>
+
             {canShareScreen && (
               <button
                 type="button"
@@ -297,22 +461,7 @@ export function TeacherBroadcaster({ lesson }) {
                 <span>Демонстрация экрана</span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={() => startBroadcast('camera')}
-              className="py-3 px-3 rounded-2xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:brightness-110 text-xs font-bold text-white flex flex-col items-center gap-1.5 shadow-lg shadow-cyan-600/20"
-            >
-              <Video className="w-5 h-5" />
-              <span>{isMobileDevice ? 'Камера телефона и микрофон' : 'Веб-камера и микрофон'}</span>
-            </button>
           </div>
-
-          {!canShareScreen && (
-            <div className="text-[11px] text-slate-400">
-              Демонстрация экрана доступна при входе с компьютера. С телефона транслируется камера и микрофон.
-            </div>
-          )}
 
           {error && (
             <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-[11px] text-rose-300">
@@ -322,14 +471,35 @@ export function TeacherBroadcaster({ lesson }) {
         </div>
       ) : (
         <div className="space-y-3">
-          <div className="relative rounded-2xl overflow-hidden bg-black border border-cyan-500/40 aspect-video">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full h-full object-contain"
-            />
+          <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-cyan-500/40 aspect-video flex items-center justify-center">
+            {camOn ? (
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full h-full object-contain bg-black"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+                <div
+                  className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                    micOn
+                      ? 'bg-emerald-500/20 border border-emerald-400/50 text-emerald-400 animate-pulse'
+                      : 'bg-white/5 border border-white/10 text-slate-400'
+                  }`}
+                >
+                  {micOn ? <Mic className="w-7 h-7" /> : <MicOff className="w-7 h-7" />}
+                </div>
+                <div className="text-xs font-bold text-white">
+                  {micOn ? 'Идёт голосовой эфир (камера выключена)' : 'Камера и микрофон на паузе'}
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  Включайте или отключайте камеру и микрофон кнопками ниже
+                </div>
+              </div>
+            )}
+
             <div className="absolute top-2.5 left-2.5 flex items-center gap-2">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10px] font-bold">
                 <Radio className="w-3 h-3 animate-pulse" /> В ЭФИРЕ
@@ -339,7 +509,7 @@ export function TeacherBroadcaster({ lesson }) {
               </span>
             </div>
 
-            {sourceType === 'camera' && (
+            {sourceType === 'media' && camOn && (
               <button
                 type="button"
                 onClick={switchCamera}
@@ -351,20 +521,46 @@ export function TeacherBroadcaster({ lesson }) {
             )}
           </div>
 
+          {error && (
+            <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-[11px] text-rose-300">
+              {error}
+            </div>
+          )}
+
+          {/* Раздельное управление камерой и микрофоном */}
           <div className="grid grid-cols-2 gap-2">
+            {sourceType === 'media' && (
+              <button
+                type="button"
+                onClick={() => (camOn ? disableCamera() : enableCamera(facingMode))}
+                className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
+                  camOn
+                    ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
+                    : 'bg-white/10 border-white/15 text-slate-300'
+                }`}
+              >
+                {camOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4 text-slate-400" />}
+                <span>{camOn ? 'Камера: Вкл' : 'Камера: Выкл'}</span>
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={toggleMic}
-              className={`py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border ${
-                micMuted
-                  ? 'bg-rose-500/20 border-rose-500/40 text-rose-300'
-                  : 'bg-white/10 border-white/15 text-white'
+              onClick={() => (micOn ? disableMicrophone() : enableMicrophone())}
+              className={`${
+                sourceType === 'screen' ? 'col-span-2' : ''
+              } py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition ${
+                micOn
+                  ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                  : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
               }`}
             >
-              {micMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4 text-emerald-400" />}
-              <span>{micMuted ? 'Мой микр. выкл' : 'Мой микр. вкл'}</span>
+              {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+              <span>{micOn ? 'Микрофон: Вкл' : 'Микрофон: Выкл'}</span>
             </button>
+          </div>
 
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={() => setMuteStudents((prev) => !prev)}
@@ -375,18 +571,18 @@ export function TeacherBroadcaster({ lesson }) {
               }`}
             >
               {muteStudents ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              <span>{muteStudents ? 'Студенты: без звука' : 'Слышу студентов'}</span>
+              <span>{muteStudents ? 'Студенты: тихо' : 'Слышу студентов'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={stopStream}
+              className="py-2.5 px-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center justify-center gap-1.5"
+            >
+              <VideoOff className="w-4 h-4" />
+              <span>Завершить эфир</span>
             </button>
           </div>
-
-          <button
-            type="button"
-            onClick={stopStream}
-            className="w-full py-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center justify-center gap-1.5"
-          >
-            <VideoOff className="w-4 h-4" />
-            <span>Остановить эфир</span>
-          </button>
         </div>
       )}
     </div>
@@ -396,11 +592,13 @@ export function TeacherBroadcaster({ lesson }) {
 export function StudentViewer({ lesson, student, deviceId, onMarked }) {
   const [joined, setJoined] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [hasActiveVideo, setHasActiveVideo] = useState(false);
   const [statusText, setStatusText] = useState('Ожидание подключения...');
   const [micEnabled, setMicEnabled] = useState(false);
   const [micError, setMicError] = useState('');
 
   const videoRef = useRef(null);
+  const remoteStreamRef = useRef(new MediaStream());
   const pcRef = useRef(null);
   const audioSenderRef = useRef(null);
   const localMicStreamRef = useRef(null);
@@ -426,10 +624,29 @@ export function StudentViewer({ lesson, student, deviceId, onMarked }) {
       } catch {}
       pcRef.current = null;
     }
+    remoteStreamRef.current = new MediaStream();
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     audioSenderRef.current = null;
     setMicEnabled(false);
     setIsConnected(false);
+    setHasActiveVideo(false);
   };
+
+  // Отслеживаем, идёт ли сейчас видеокадр от преподавателя (или только голос)
+  useEffect(() => {
+    if (!isConnected) return;
+    const interval = setInterval(() => {
+      const vid = videoRef.current;
+      if (vid && vid.videoWidth > 0 && vid.readyState >= 2) {
+        setHasActiveVideo(true);
+      } else {
+        setHasActiveVideo(false);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isConnected]);
 
   const joinStream = async () => {
     cleanupConnection();
@@ -441,7 +658,6 @@ export function StudentViewer({ lesson, student, deviceId, onMarked }) {
     const pc = new RTCPeerConnection(ICE_SERVERS);
     pcRef.current = pc;
 
-    // Резервируем двусторонний аудиоканал заранее, чтобы студент мог включать микрофон без обрыва видео
     const audioTransceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
     pc.addTransceiver('video', { direction: 'recvonly' });
     audioSenderRef.current = audioTransceiver.sender;
@@ -452,9 +668,16 @@ export function StudentViewer({ lesson, student, deviceId, onMarked }) {
     };
 
     pc.ontrack = (event) => {
-      const incomingStream = event.streams?.[0] || new MediaStream([event.track]);
+      if (event.track) {
+        const exists = remoteStreamRef.current.getTracks().some((t) => t.id === event.track.id);
+        if (!exists) {
+          remoteStreamRef.current.addTrack(event.track);
+        }
+      }
+      if (videoRef.current && videoRef.current.srcObject !== remoteStreamRef.current) {
+        videoRef.current.srcObject = remoteStreamRef.current;
+      }
       if (videoRef.current) {
-        videoRef.current.srcObject = incomingStream;
         videoRef.current.play().catch(() => {});
       }
       setIsConnected(true);
@@ -480,7 +703,7 @@ export function StudentViewer({ lesson, student, deviceId, onMarked }) {
 
     timeoutRef.current = setTimeout(() => {
       if (!state.remoteSet) {
-        setStatusText('Преподаватель ещё не запустил видео — нажмите Переподключиться');
+        setStatusText('Преподаватель ещё не запустил эфир — нажмите Переподключиться');
       }
     }, 12000);
 
@@ -602,18 +825,29 @@ export function StudentViewer({ lesson, student, deviceId, onMarked }) {
         </span>
       </div>
 
-      <div className="relative rounded-2xl overflow-hidden bg-black border border-white/10 aspect-video">
+      <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-white/10 aspect-video">
         <video
           ref={videoRef}
           autoPlay
-          controls
+          controls={hasActiveVideo}
           playsInline
-          className="w-full h-full object-contain"
+          className="w-full h-full object-contain bg-black"
         />
+
         {!isConnected && (
           <div className="absolute inset-0 bg-slate-950/85 flex flex-col items-center justify-center p-4 text-center space-y-2.5">
             <div className="w-7 h-7 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
             <div className="text-xs text-slate-300">{statusText}</div>
+          </div>
+        )}
+
+        {isConnected && !hasActiveVideo && (
+          <div className="pointer-events-none absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-4 text-center space-y-2">
+            <div className="w-12 h-12 rounded-full bg-cyan-500/15 border border-cyan-400/40 flex items-center justify-center text-cyan-300 animate-pulse">
+              <Volume2 className="w-6 h-6" />
+            </div>
+            <div className="text-xs font-bold text-white">Голосовой эфир преподавателя</div>
+            <div className="text-[11px] text-slate-400">Камера преподавателя сейчас выключена</div>
           </div>
         )}
       </div>
