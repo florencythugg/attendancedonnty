@@ -23,7 +23,7 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Generate Pulse Icon & Splash Screen
+      - name: Generate Carbon Monochrome Icon & Splash Screen
         run: |
           python3 -m pip install pillow
           mkdir -p resources
@@ -31,14 +31,19 @@ jobs:
           from PIL import Image, ImageDraw
 
           size = 1024
-          img = Image.new("RGBA", (size, size), (3, 7, 18, 255))
+          img = Image.new("RGBA", (size, size), (10, 10, 12, 255))
           draw = ImageDraw.Draw(img)
 
           for y in range(size):
-              r = int(14 + (59 - 14) * (y / size))
-              g = int(165 + (130 - 165) * (y / size))
-              b = int(233 + (246 - 233) * (y / size))
-              draw.line([(0, y), (size, y)], fill=(r, g, b, 255))
+              v = int(24 - 14 * (y / size))
+              draw.line([(0, y), (size, y)], fill=(v, v, v + 2, 255))
+
+          draw.rounded_rectangle(
+              [36, 36, size - 36, size - 36],
+              radius=220,
+              outline=(212, 212, 216, 255),
+              width=22
+          )
 
           pts = [
               (180, 520),
@@ -53,7 +58,7 @@ jobs:
 
           img.save("resources/icon.png")
 
-          splash = Image.new("RGBA", (2732, 2732), (3, 7, 18, 255))
+          splash = Image.new("RGBA", (2732, 2732), (6, 6, 7, 255))
           icon_resized = img.resize((520, 520), Image.Resampling.LANCZOS)
           mask = Image.new("L", (520, 520), 0)
           ImageDraw.Draw(mask).rounded_rectangle([0, 0, 520, 520], radius=120, fill=255)
@@ -73,7 +78,6 @@ jobs:
           npx capacitor-assets generate --android || true
           npx cap sync android
 
-          # 1. Добавляем разрешения на камеру, микрофон и GPS в AndroidManifest.xml
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ]; then
             python3 - << 'EOF'
@@ -96,18 +100,17 @@ jobs:
           EOF
           fi
 
-          # 2. Красим все темы в styles.xml в #030712
           mkdir -p android/app/src/main/res/values
           cat << 'EOF' > android/app/src/main/res/values/styles.xml
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
-                  <item name="colorPrimary">#030712</item>
-                  <item name="colorPrimaryDark">#030712</item>
-                  <item name="colorAccent">#22d3ee</item>
-                  <item name="android:windowBackground">#030712</item>
-                  <item name="android:statusBarColor">#030712</item>
-                  <item name="android:navigationBarColor">#030712</item>
+                  <item name="colorPrimary">#060607</item>
+                  <item name="colorPrimaryDark">#060607</item>
+                  <item name="colorAccent">#e4e4e7</item>
+                  <item name="android:windowBackground">#060607</item>
+                  <item name="android:statusBarColor">#060607</item>
+                  <item name="android:navigationBarColor">#060607</item>
                   <item name="android:windowLightStatusBar">false</item>
                   <item name="android:windowLightNavigationBar">false</item>
                   <item name="android:enforceNavigationBarContrast">false</item>
@@ -115,15 +118,14 @@ jobs:
               <style name="AppTheme.NoActionBar" parent="AppTheme">
                   <item name="windowActionBar">false</item>
                   <item name="windowNoTitle">true</item>
-                  <item name="android:background">#030712</item>
+                  <item name="android:background">#060607</item>
               </style>
               <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
-                  <item name="android:background">#030712</item>
+                  <item name="android:background">#060607</item>
               </style>
           </resources>
           EOF
 
-          # 3. Программно фиксируем тёмную панель навигации в MainActivity.java
           MAIN_ACT=$(find android/app/src/main/java -name "MainActivity.java" | head -n 1)
           if [ -f "$MAIN_ACT" ]; then
             PKG_LINE=$(head -n 1 "$MAIN_ACT")
@@ -141,7 +143,7 @@ jobs:
           public class MainActivity extends BridgeActivity {
               private void forceDarkSystemBars() {
                   Window window = getWindow();
-                  int darkColor = Color.parseColor("#030712");
+                  int darkColor = Color.parseColor("#060607");
                   window.setStatusBarColor(darkColor);
                   window.setNavigationBarColor(darkColor);
                   if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
