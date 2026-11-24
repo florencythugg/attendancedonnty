@@ -6,98 +6,142 @@
   html,
   body,
   #root {
+    background-color: #060607;
+    color: #f4f4f5;
     min-height: 100%;
-    min-height: 100dvh;
-    background-color: #030712;
-    color: #f8fafc;
     -webkit-tap-highlight-color: transparent;
-    overscroll-behavior-y: none;
   }
 }
 
-.pb-safe {
-  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+/* Текстура матового карбона для фона */
+.carbon-bg {
+  background-color: #060607;
+  background-image:
+    linear-gradient(27deg, #0c0c0f 5px, transparent 5px),
+    linear-gradient(207deg, #0c0c0f 5px, transparent 5px),
+    linear-gradient(27deg, #101014 5px, transparent 5px),
+    linear-gradient(207deg, #101014 5px, transparent 5px),
+    linear-gradient(90deg, #09090b 10px, transparent 10px),
+    linear-gradient(#0b0b0e 25%, #070709 25%, #070709 50%, transparent 50%, transparent 75%, #0d0d10 75%, #0d0d10);
+  background-size: 16px 16px;
+  background-position: 0 4px, 8px 0, 0 12px, 8px 8px, 0 0, 8px 8px;
 }
 
+/* Матовая карбоновая карточка (поддерживает и старый класс glass-card) */
+.carbon-card,
 .glass-card {
-  background: rgba(15, 23, 42, 0.65);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+  background: linear-gradient(160deg, rgba(20, 20, 24, 0.92) 0%, rgba(10, 10, 13, 0.95) 100%);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 24px 60px rgba(0, 0, 0, 0.72);
 }
 
-.glass-nav {
-  background: rgba(3, 7, 18, 0.94);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+/* Поверхность для 3D-карты Pulse ID */
+.carbon-surface {
+  background-color: #0c0c0f;
+  background-image:
+    repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 2px,
+      transparent 2px,
+      transparent 6px
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      rgba(255, 255, 255, 0.025) 0px,
+      rgba(255, 255, 255, 0.025) 2px,
+      transparent 2px,
+      transparent 6px
+    ),
+    linear-gradient(135deg, #18181c 0%, #09090b 55%, #16161a 100%);
 }
 
-@keyframes floatOrb {
-  0%, 100% {
-    transform: translate(0px, 0px) scale(1);
+/* Переливающийся серебристо-белый заголовок Pulse */
+.pulse-shimmer-title {
+  background: linear-gradient(
+    110deg,
+    #71717a 0%,
+    #ffffff 25%,
+    #d4d4d8 48%,
+    #ffffff 72%,
+    #52525b 100%
+  );
+  background-size: 240% 240%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: pulseTextShimmer 4.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 16px rgba(255, 255, 255, 0.16));
+}
+
+@keyframes pulseSquareWave {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
   }
-  50% {
-    transform: translate(18px, -22px) scale(1.06);
-  }
-}
-
-.animate-orb {
-  animation: floatOrb 9s ease-in-out infinite;
-}
-
-.animate-orb-delayed {
-  animation: floatOrb 12s ease-in-out infinite reverse;
-}
-
-@keyframes fadeSlideUp {
-  from {
+  100% {
+    transform: scale(1.65);
     opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
-.animate-tab-enter {
-  animation: fadeSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes scanLaser {
-  0%, 100% {
-    top: 8%;
-    opacity: 0.4;
+@keyframes pulseWaveDraw {
+  0% {
+    stroke-dashoffset: 145;
+    opacity: 0.35;
   }
   50% {
-    top: 88%;
+    stroke-dashoffset: 0;
     opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -145;
+    opacity: 0.35;
   }
 }
 
-.animate-scan-laser {
-  animation: scanLaser 2.2s ease-in-out infinite;
+@keyframes pulseTextShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
-#qr-reader {
-  border: none !important;
+@keyframes neonAmbientShiftA {
+  0%,
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(90px, 60px, 0) scale(1.15);
+  }
 }
-#qr-reader video {
-  border-radius: 1.25rem;
-  object-fit: cover;
-  width: 100% !important;
+
+@keyframes neonAmbientShiftB {
+  0%,
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(-85px, -55px, 0) scale(1.12);
+  }
 }
-#qr-reader__scan_region {
-  background: transparent !important;
-}
-#qr-reader__dashboard_section_csr button {
-  background: linear-gradient(135deg, #2563eb, #4f46e5) !important;
-  color: white !important;
-  border-radius: 0.85rem !important;
-  padding: 0.6rem 1.2rem !important;
-  border: none !important;
-  font-weight: 600 !important;
-  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.5) !important;
+
+@keyframes neonAmbientShiftC {
+  0%,
+  100% {
+    transform: translate3d(0px, 0px, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(70px, -65px, 0) scale(1.18);
+  }
 }
