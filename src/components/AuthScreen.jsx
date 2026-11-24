@@ -14,21 +14,21 @@ import { dbService } from '../services/db';
 function AnimatedPulseLogo() {
   return (
     <div className="relative mb-5 select-none flex items-center justify-center">
-      {/* Расходящиеся неоновые квадратики (пульс-волны) */}
+      {/* Плавное неоновое свечение прямо от контура логотипа */}
+      <div className="pointer-events-none absolute w-24 h-24 rounded-[1.6rem] bg-gradient-to-tr from-blue-500/35 via-cyan-400/35 to-indigo-500/35 blur-xl animate-pulse" />
+
+      {/* Расходящиеся неоновые волны-квадраты прямо от края иконки */}
       <span
-        className="pointer-events-none absolute w-24 h-24 rounded-[1.85rem] border border-cyan-400/50 shadow-[0_0_20px_rgba(34,211,238,0.25)]"
+        className="pointer-events-none absolute w-20 h-20 rounded-[1.45rem] border border-cyan-400/70 shadow-[0_0_16px_rgba(34,211,238,0.35)]"
         style={{ animation: 'pulseSquareWave 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite' }}
       />
       <span
-        className="pointer-events-none absolute w-24 h-24 rounded-[1.85rem] border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+        className="pointer-events-none absolute w-20 h-20 rounded-[1.45rem] border border-blue-400/60 shadow-[0_0_16px_rgba(59,130,246,0.3)]"
         style={{ animation: 'pulseSquareWave 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite 1.4s' }}
       />
 
-      {/* Мягкое фоновое свечение */}
-      <div className="absolute -inset-3 rounded-[2.2rem] bg-gradient-to-tr from-blue-600/25 via-cyan-400/20 to-indigo-500/25 blur-xl animate-pulse" />
-
-      {/* Внешняя стеклянная рамка */}
-      <div className="relative w-24 h-24 rounded-[1.85rem] bg-[#070e21]/95 border border-white/15 p-2 shadow-[0_0_40px_rgba(34,211,238,0.22)] flex items-center justify-center">
+      {/* Сам логотип без лишней внешней серой рамки */}
+      <div className="relative w-20 h-20 rounded-[1.45rem] shadow-[0_0_30px_rgba(34,211,238,0.28)] flex items-center justify-center">
         <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
           <defs>
             <linearGradient id="pulseStrokeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -38,7 +38,7 @@ function AnimatedPulseLogo() {
             </linearGradient>
 
             <pattern id="pulseGrid" width="12" height="12" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1.1" fill="#38bdf8" fillOpacity="0.22" />
+              <circle cx="2" cy="2" r="1.15" fill="#38bdf8" fillOpacity="0.24" />
             </pattern>
 
             <filter id="pulseGlow" x="-30%" y="-30%" width="160%" height="160%">
@@ -50,47 +50,47 @@ function AnimatedPulseLogo() {
             </filter>
           </defs>
 
-          {/* Внутренняя подложка с сеткой */}
+          {/* Подложка и неоновый контур на всю ширину */}
           <rect
-            x="6"
-            y="6"
-            width="88"
-            height="88"
-            rx="22"
-            fill="#09132b"
+            x="2"
+            y="2"
+            width="96"
+            height="96"
+            rx="24"
+            fill="#071024"
             stroke="url(#pulseStrokeGrad)"
-            strokeWidth="2.5"
+            strokeWidth="3"
           />
-          <rect x="6" y="6" width="88" height="88" rx="22" fill="url(#pulseGrid)" />
+          <rect x="2" y="2" width="96" height="96" rx="24" fill="url(#pulseGrid)" />
 
-          {/* Бледная фоновая линия пульса */}
+          {/* Фоновая линия пульса */}
           <path
-            d="M 18 52 L 33 52 L 41 33 L 50 70 L 59 28 L 67 52 L 82 52"
+            d="M 16 52 L 32 52 L 40 32 L 50 71 L 60 27 L 68 52 L 84 52"
             fill="none"
             stroke="#22d3ee"
             strokeOpacity="0.2"
-            strokeWidth="3.5"
+            strokeWidth="3.8"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
 
           {/* Анимированная светящаяся линия пульса */}
           <path
-            d="M 18 52 L 33 52 L 41 33 L 50 70 L 59 28 L 67 52 L 82 52"
+            d="M 16 52 L 32 52 L 40 32 L 50 71 L 60 27 L 68 52 L 84 52"
             fill="none"
             stroke="url(#pulseStrokeGrad)"
-            strokeWidth="3.8"
+            strokeWidth="4.2"
             strokeLinecap="round"
             strokeLinejoin="round"
             filter="url(#pulseGlow)"
             style={{
-              strokeDasharray: 140,
+              strokeDasharray: 145,
               animation: 'pulseWaveDraw 2.6s ease-in-out infinite'
             }}
           />
 
           {/* Светящаяся точка на конце волны */}
-          <circle cx="82" cy="52" r="2.8" fill="#67e8f9" filter="url(#pulseGlow)">
+          <circle cx="84" cy="52" r="3" fill="#67e8f9" filter="url(#pulseGlow)">
             <animate
               attributeName="opacity"
               values="0.3;1;0.3"
@@ -100,8 +100,8 @@ function AnimatedPulseLogo() {
           </circle>
         </svg>
 
-        {/* Индикатор онлайн-статуса в правом верхнем углу */}
-        <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
+        {/* Индикатор онлайн-статуса в углу */}
+        <span className="absolute -top-1 -right-1 flex h-4 w-4">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-400 border-2 border-[#030712]" />
         </span>
@@ -110,17 +110,17 @@ function AnimatedPulseLogo() {
       <style>{`
         @keyframes pulseSquareWave {
           0% {
-            transform: scale(0.98);
+            transform: scale(1);
             opacity: 0.85;
           }
           100% {
-            transform: scale(1.48);
+            transform: scale(1.65);
             opacity: 0;
           }
         }
         @keyframes pulseWaveDraw {
           0% {
-            stroke-dashoffset: 140;
+            stroke-dashoffset: 145;
             opacity: 0.4;
           }
           50% {
@@ -128,7 +128,7 @@ function AnimatedPulseLogo() {
             opacity: 1;
           }
           100% {
-            stroke-dashoffset: -140;
+            stroke-dashoffset: -145;
             opacity: 0.4;
           }
         }
