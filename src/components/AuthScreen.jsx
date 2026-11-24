@@ -13,12 +13,22 @@ import { dbService } from '../services/db';
 
 function AnimatedPulseLogo() {
   return (
-    <div className="relative mb-4 select-none">
+    <div className="relative mb-5 select-none flex items-center justify-center">
+      {/* Расходящиеся неоновые квадратики (пульс-волны) */}
+      <span
+        className="pointer-events-none absolute w-24 h-24 rounded-[1.85rem] border border-cyan-400/50 shadow-[0_0_20px_rgba(34,211,238,0.25)]"
+        style={{ animation: 'pulseSquareWave 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite' }}
+      />
+      <span
+        className="pointer-events-none absolute w-24 h-24 rounded-[1.85rem] border border-blue-500/40 shadow-[0_0_20px_rgba(59,130,246,0.2)]"
+        style={{ animation: 'pulseSquareWave 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite 1.4s' }}
+      />
+
       {/* Мягкое фоновое свечение */}
       <div className="absolute -inset-3 rounded-[2.2rem] bg-gradient-to-tr from-blue-600/25 via-cyan-400/20 to-indigo-500/25 blur-xl animate-pulse" />
 
       {/* Внешняя стеклянная рамка */}
-      <div className="relative w-24 h-24 rounded-[1.85rem] bg-[#070e21]/90 border border-white/10 p-2 shadow-[0_0_40px_rgba(34,211,238,0.18)] flex items-center justify-center">
+      <div className="relative w-24 h-24 rounded-[1.85rem] bg-[#070e21]/95 border border-white/15 p-2 shadow-[0_0_40px_rgba(34,211,238,0.22)] flex items-center justify-center">
         <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
           <defs>
             <linearGradient id="pulseStrokeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -89,15 +99,25 @@ function AnimatedPulseLogo() {
             />
           </circle>
         </svg>
+
+        {/* Индикатор онлайн-статуса в правом верхнем углу */}
+        <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-400 border-2 border-[#030712]" />
+        </span>
       </div>
 
-      {/* Индикатор онлайн-статуса в правом верхнем углу */}
-      <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4">
-        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-        <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-400 border-2 border-[#030712]" />
-      </span>
-
       <style>{`
+        @keyframes pulseSquareWave {
+          0% {
+            transform: scale(0.98);
+            opacity: 0.85;
+          }
+          100% {
+            transform: scale(1.48);
+            opacity: 0;
+          }
+        }
         @keyframes pulseWaveDraw {
           0% {
             stroke-dashoffset: 140;
@@ -111,6 +131,33 @@ function AnimatedPulseLogo() {
             stroke-dashoffset: -140;
             opacity: 0.4;
           }
+        }
+        @keyframes pulseTextShimmer {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+        .pulse-shimmer-title {
+          background: linear-gradient(
+            110deg,
+            #ffffff 0%,
+            #67e8f9 25%,
+            #38bdf8 50%,
+            #818cf8 75%,
+            #ffffff 100%
+          );
+          background-size: 240% 240%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          animation: pulseTextShimmer 4.5s ease-in-out infinite;
+          filter: drop-shadow(0 0 18px rgba(34, 211, 238, 0.25));
         }
       `}</style>
     </div>
@@ -166,11 +213,11 @@ export default function AuthScreen({ onAuthSuccess }) {
       </div>
 
       <div className="relative z-10 w-full max-w-md space-y-6">
-        {/* Анимированный логотип и подпись */}
+        {/* Анимированный логотип и переливающийся заголовок */}
         <div className="flex flex-col items-center text-center">
           <AnimatedPulseLogo />
 
-          <h1 className="text-4xl font-black tracking-tight bg-gradient-to-b from-white via-white to-cyan-200 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-black tracking-tight pulse-shimmer-title">
             Pulse
           </h1>
 
