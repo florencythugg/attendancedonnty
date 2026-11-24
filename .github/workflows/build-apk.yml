@@ -63,8 +63,8 @@ jobs:
 
       - name: Install dependencies & build web app
         run: |
-          npm install
-          npm install -D @capacitor/assets
+          npm install --legacy-peer-deps
+          npm install -D @capacitor/assets --legacy-peer-deps
           npm run build
 
       - name: Add Android platform, icons, dark bars & permissions
@@ -73,7 +73,7 @@ jobs:
           npx capacitor-assets generate --android || true
           npx cap sync android
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
+          if [ -f "$MANIFEST" ] && ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
             sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" \/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" \/>/' "$MANIFEST"
           fi
           STYLES="android/app/src/main/res/values/styles.xml"
@@ -82,7 +82,7 @@ jobs:
           path = "android/app/src/main/res/values/styles.xml"
           with open(path, "r", encoding="utf-8") as f:
               txt = f.read()
-          insert = '        <item name="android:navigationBarColor">#030712</item>\n        <item name="android:statusBarColor">#030712</item>\n        <item name="android:windowBackground">#030712</item>\n    </style>'
+          insert = '        <item name="android:navigationBarColor">#030712</item>\n        <item name="android:statusBarColor">#030712</item>\n        <item name="android:windowBackground">#030712</item>\n        <item name="android:windowLightNavigationBar">false</item>\n        <item name="android:enforceNavigationBarContrast">false</item>\n    </style>'
           txt = txt.replace("</style>", insert, 1)
           with open(path, "w", encoding="utf-8") as f:
               f.write(txt)
