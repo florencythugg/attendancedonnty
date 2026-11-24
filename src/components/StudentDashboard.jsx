@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import QRCode from 'qrcode';
 import {
