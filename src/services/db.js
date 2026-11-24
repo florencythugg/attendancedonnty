@@ -468,29 +468,30 @@ export const dbService = {
     await setDoc(doc(iceCol), candidate);
   },
 
-  async createViewerOffer(lessonId, studentId, offer) {
+  async createViewerOffer(lessonId, viewerId, offer, studentName = '') {
     if (!firestore) return;
-    await setDoc(doc(firestore, 'lessons', lessonId, 'viewers', studentId), {
+    await setDoc(doc(firestore, 'lessons', lessonId, 'viewers', viewerId), {
       offer,
+      studentName,
       answer: null,
       createdAt: Date.now()
     });
   },
 
-  async addViewerIce(lessonId, studentId, candidate) {
+  async addViewerIce(lessonId, viewerId, candidate) {
     if (!firestore) return;
-    const iceCol = collection(firestore, 'lessons', lessonId, 'viewers', studentId, 'viewerCandidates');
+    const iceCol = collection(firestore, 'lessons', lessonId, 'viewers', viewerId, 'viewerCandidates');
     await setDoc(doc(iceCol), candidate);
   },
 
-  subscribeViewerSession(lessonId, studentId, onAnswer, onIceCandidate) {
+  subscribeViewerSession(lessonId, viewerId, onAnswer, onIceCandidate) {
     if (!firestore) return () => {};
-    const unsubDoc = onSnapshot(doc(firestore, 'lessons', lessonId, 'viewers', studentId), (snap) => {
+    const unsubDoc = onSnapshot(doc(firestore, 'lessons', lessonId, 'viewers', viewerId), (snap) => {
       const data = snap.data();
       if (data?.answer) onAnswer(data.answer);
     });
     const unsubIce = onSnapshot(
-      collection(firestore, 'lessons', lessonId, 'viewers', studentId, 'broadcasterCandidates'),
+      collection(firestore, 'lessons', lessonId, 'viewers', viewerId, 'broadcasterCandidates'),
       (snap) => {
         snap.docChanges().forEach((change) => {
           if (change.type === 'added') onIceCandidate(change.doc.data());
@@ -503,10 +504,10 @@ export const dbService = {
     };
   },
 
-  subscribeViewerIce(lessonId, studentId, onIceCandidate) {
+  subscribeViewerIce(lessonId, viewerId, onIceCandidate) {
     if (!firestore) return () => {};
     return onSnapshot(
-      collection(firestore, 'lessons', lessonId, 'viewers', studentId, 'viewerCandidates'),
+      collection(firestore, 'lessons', lessonId, 'viewers', viewerId, 'viewerCandidates'),
       (snap) => {
         snap.docChanges().forEach((change) => {
           if (change.type === 'added') onIceCandidate(change.doc.data());
