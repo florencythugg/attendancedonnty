@@ -72,21 +72,85 @@ jobs:
           npx cap add android || true
           npx capacitor-assets generate --android || true
           npx cap sync android
+
           MANIFEST="android/app/src/main/AndroidManifest.xml"
           if [ -f "$MANIFEST" ] && ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
             sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" \/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" \/>/' "$MANIFEST"
           fi
-          STYLES="android/app/src/main/res/values/styles.xml"
-          if [ -f "$STYLES" ] && ! grep -q "navigationBarColor" "$STYLES"; then
-            python3 - << 'EOF'
-          path = "android/app/src/main/res/values/styles.xml"
-          with open(path, "r", encoding="utf-8") as f:
-              txt = f.read()
-          insert = '        <item name="android:navigationBarColor">#030712</item>\n        <item name="android:statusBarColor">#030712</item>\n        <item name="android:windowBackground">#030712</item>\n        <item name="android:windowLightNavigationBar">false</item>\n        <item name="android:enforceNavigationBarContrast">false</item>\n    </style>'
-          txt = txt.replace("</style>", insert, 1)
-          with open(path, "w", encoding="utf-8") as f:
-              f.write(txt)
+
+          # 1. Принудительно красим все темы в styles.xml
+          mkdir -p android/app/src/main/res/values
+          cat << 'EOF' > android/app/src/main/res/values/styles.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="Theme.AppCompat.NoActionBar">
+                  <item name="colorPrimary">#030712</item>
+                  <item name="colorPrimaryDark">#030712</item>
+                  <item name="colorAccent">#22d3ee</item>
+                  <item name="android:windowBackground">#030712</item>
+                  <item name="android:statusBarColor">#030712</item>
+                  <item name="android:navigationBarColor">#030712</item>
+                  <item name="android:windowLightStatusBar">false</item>
+                  <item name="android:windowLightNavigationBar">false</item>
+                  <item name="android:enforceNavigationBarContrast">false</item>
+              </style>
+              <style name="AppTheme.NoActionBar" parent="AppTheme">
+                  <item name="windowActionBar">false</item>
+                  <item name="windowNoTitle">true</item>
+                  <item name="android:background">#030712</item>
+              </style>
+              <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">
+                  <item name="android:background">#030712</item>
+              </style>
+          </resources>
           EOF
+
+          # 2. Программно фиксируем тёмную панель навигации в MainActivity.java
+          MAIN_ACT=$(find android/app/src/main/java -name "MainActivity.java" | head -n 1)
+          if [ -f "$MAIN_ACT" ]; then
+            PKG_LINE=$(head -n 1 "$MAIN_ACT")
+            cat << EOF > "$MAIN_ACT"
+          $PKG_LINE
+
+          import android.graphics.Color;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.Window;
+          import androidx.core.view.WindowCompat;
+          import androidx.core.view.WindowInsetsControllerCompat;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              private void forceDarkSystemBars() {
+                  Window window = getWindow();
+                  int darkColor = Color.parseColor("#030712");
+                  window.setStatusBarColor(darkColor);
+                  window.setNavigationBarColor(darkColor);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                      window.setNavigationBarContrastEnforced(false);
+                  }
+                  WindowInsetsControllerCompat controller =
+                      WindowCompat.getInsetsController(window, window.getDecorView());
+                  if (controller != null) {
+                      controller.setAppearanceLightStatusBars(false);
+                      controller.setAppearanceLightNavigationBars(false);
+                  }
+              }
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  forceDarkSystemBars();
+              }
+
+              @Override
+              public void onResume() {
+                  super.onResume();
+                  forceDarkSystemBars();
+              }
+          }
+          EOF
+            echo "Patched $MAIN_ACT successfully"
           fi
 
       - name: Build Debug APK
