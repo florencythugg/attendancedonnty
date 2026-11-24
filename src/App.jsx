@@ -5,6 +5,7 @@ import StudentDashboard from './components/StudentDashboard';
 import { dbService } from './services/db';
 
 const SESSION_KEY = 'ap_v2_current_user';
+const CARBON_BG_COLOR = '#060607';
 
 export default function App() {
   const [user, setUser] = useState(() => {
@@ -20,8 +21,8 @@ export default function App() {
 
   useEffect(() => {
     const applyDarkBars = async () => {
-      document.documentElement.style.backgroundColor = '#030712';
-      document.body.style.backgroundColor = '#030712';
+      document.documentElement.style.backgroundColor = CARBON_BG_COLOR;
+      document.body.style.backgroundColor = CARBON_BG_COLOR;
 
       let metaTheme = document.querySelector('meta[name="theme-color"]');
       if (!metaTheme) {
@@ -29,12 +30,12 @@ export default function App() {
         metaTheme.name = 'theme-color';
         document.head.appendChild(metaTheme);
       }
-      metaTheme.setAttribute('content', '#030712');
+      metaTheme.setAttribute('content', CARBON_BG_COLOR);
 
       try {
         if (window.Capacitor?.Plugins?.StatusBar) {
           const { StatusBar } = window.Capacitor.Plugins;
-          await StatusBar.setBackgroundColor({ color: '#030712' });
+          await StatusBar.setBackgroundColor({ color: CARBON_BG_COLOR });
           await StatusBar.setStyle({ style: 'DARK' });
         }
       } catch {}
@@ -77,3 +78,4 @@ export default function App() {
 
   return <StudentDashboard user={user} data={data} onLogout={handleLogout} />;
 }
+
