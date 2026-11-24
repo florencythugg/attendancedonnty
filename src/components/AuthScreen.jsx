@@ -27,7 +27,7 @@ function AnimatedPulseLogo() {
         style={{ animation: 'pulseSquareWave 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite 1.4s' }}
       />
 
-      {/* Сам логотип без лишней внешней серой рамки */}
+      {/* Сам логотип с чистым фоном внутри */}
       <div className="relative w-20 h-20 rounded-[1.45rem] shadow-[0_0_30px_rgba(34,211,238,0.28)] flex items-center justify-center">
         <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
           <defs>
@@ -36,10 +36,6 @@ function AnimatedPulseLogo() {
               <stop offset="50%" stopColor="#22d3ee" />
               <stop offset="100%" stopColor="#818cf8" />
             </linearGradient>
-
-            <pattern id="pulseGrid" width="12" height="12" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1.15" fill="#38bdf8" fillOpacity="0.24" />
-            </pattern>
 
             <filter id="pulseGlow" x="-30%" y="-30%" width="160%" height="160%">
               <feGaussianBlur stdDeviation="2.5" result="blur" />
@@ -50,7 +46,7 @@ function AnimatedPulseLogo() {
             </filter>
           </defs>
 
-          {/* Подложка и неоновый контур на всю ширину */}
+          {/* Чистая тёмная подложка и неоновый контур */}
           <rect
             x="2"
             y="2"
@@ -61,7 +57,6 @@ function AnimatedPulseLogo() {
             stroke="url(#pulseStrokeGrad)"
             strokeWidth="3"
           />
-          <rect x="2" y="2" width="96" height="96" rx="24" fill="url(#pulseGrid)" />
 
           {/* Фоновая линия пульса */}
           <path
