@@ -32,16 +32,31 @@ import {
 import { StudentViewer } from './LiveStreamRoom';
 
 function PulseMiniLogo() {
+  const uid = useId().replace(/:/g, '');
+  const gradId = `pulseMiniGrad-${uid}`;
+  const glowId = `pulseMiniGlow-${uid}`;
+
   return (
-    <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-2xl shrink-0 flex items-center justify-center shadow-[0_0_16px_rgba(255,255,255,0.12)]">
-      <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+    <div className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-2xl shrink-0 flex items-center justify-center shadow-[0_0_18px_rgba(255,255,255,0.14)]">
+      {/* Мягкое свечение */}
+      <div className="pointer-events-none absolute inset-0 rounded-2xl bg-white/15 blur-md animate-pulse" />
+
+      <svg viewBox="0 0 100 100" className="relative w-full h-full overflow-visible">
         <defs>
-          <linearGradient id="stdCarbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="#ffffff" />
             <stop offset="50%" stopColor="#a1a1aa" />
             <stop offset="100%" stopColor="#ffffff" />
           </linearGradient>
+          <filter id={glowId} x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
         </defs>
+
         <rect
           x="3"
           y="3"
@@ -49,19 +64,51 @@ function PulseMiniLogo() {
           height="94"
           rx="24"
           fill="#0a0a0c"
-          stroke="url(#stdCarbonGrad)"
+          stroke={`url(#${gradId})`}
           strokeWidth="3.2"
         />
+
+        {/* Фоновая линия пульса */}
         <path
           d="M 18 52 L 33 52 L 41 32 L 50 71 L 60 27 L 68 52 L 82 52"
           fill="none"
-          stroke="url(#stdCarbonGrad)"
-          strokeWidth="4.8"
+          stroke="#ffffff"
+          strokeOpacity="0.18"
+          strokeWidth="4.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
+
+        {/* Анимированная белая линия пульса */}
+        <path
+          d="M 18 52 L 33 52 L 41 32 L 50 71 L 60 27 L 68 52 L 82 52"
+          fill="none"
+          stroke={`url(#${gradId})`}
+          strokeWidth="4.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          filter={`url(#${glowId})`}
+          style={{
+            strokeDasharray: 145,
+            animation: 'pulseWaveDraw 2.6s ease-in-out infinite'
+          }}
+        />
+
+        <circle cx="82" cy="52" r="3.4" fill="#ffffff" filter={`url(#${glowId})`}>
+          <animate
+            attributeName="opacity"
+            values="0.25;1;0.25"
+            dur="1.8s"
+            repeatCount="indefinite"
+          />
+        </circle>
       </svg>
-      <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#060607]" />
+
+      {/* Зелёный индикатор онлайна */}
+      <span className="absolute -top-0.5 -right-0.5 flex h-3 w-3">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-65" />
+        <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 border-2 border-[#060607]" />
+      </span>
     </div>
   );
 }
