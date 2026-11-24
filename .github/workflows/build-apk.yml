@@ -73,12 +73,30 @@ jobs:
           npx capacitor-assets generate --android || true
           npx cap sync android
 
+          # 1. Добавляем разрешения на камеру, микрофон и GPS в AndroidManifest.xml
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          if [ -f "$MANIFEST" ] && ! grep -q "android.permission.CAMERA" "$MANIFEST"; then
-            sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.CAMERA" \/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" \/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" \/>/' "$MANIFEST"
+          if [ -f "$MANIFEST" ]; then
+            python3 - << 'EOF'
+          path = "android/app/src/main/AndroidManifest.xml"
+          with open(path, "r", encoding="utf-8") as f:
+              txt = f.read()
+          perms = [
+              "android.permission.CAMERA",
+              "android.permission.RECORD_AUDIO",
+              "android.permission.MODIFY_AUDIO_SETTINGS",
+              "android.permission.ACCESS_FINE_LOCATION",
+              "android.permission.ACCESS_COARSE_LOCATION",
+          ]
+          missing = [f'    <uses-permission android:name="{p}" />' for p in perms if p not in txt]
+          if missing:
+              target = '<uses-permission android:name="android.permission.INTERNET" />'
+              txt = txt.replace(target, target + "\n" + "\n".join(missing), 1)
+              with open(path, "w", encoding="utf-8") as f:
+                  f.write(txt)
+          EOF
           fi
 
-          # 1. Принудительно красим все темы в styles.xml
+          # 2. Красим все темы в styles.xml в #030712
           mkdir -p android/app/src/main/res/values
           cat << 'EOF' > android/app/src/main/res/values/styles.xml
           <?xml version="1.0" encoding="utf-8"?>
@@ -105,7 +123,7 @@ jobs:
           </resources>
           EOF
 
-          # 2. Программно фиксируем тёмную панель навигации в MainActivity.java
+          # 3. Программно фиксируем тёмную панель навигации в MainActivity.java
           MAIN_ACT=$(find android/app/src/main/java -name "MainActivity.java" | head -n 1)
           if [ -f "$MAIN_ACT" ]; then
             PKG_LINE=$(head -n 1 "$MAIN_ACT")
